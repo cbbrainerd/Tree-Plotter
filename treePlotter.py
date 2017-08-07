@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 import ROOT
 try:
-    from DevTools-Plotting.python.xsec import getXsec
+    from DevTools.Plotter.xsec import getXsec
 except ImportError:
     try:
-        from DevTools.Plotter.xsec import getXsec
+        from DevTools.Plotter.python.xsec import getXsec
     except ImportError:
         getXsec=None
+        print "getXsec could not be imported."
+        raise
 
 class histogram:
     def __init__(self,fillFunction=None,eventFilter=None,*args):
@@ -61,30 +63,40 @@ class histogram:
         return self.args and self.histType and self.name and self.title and self.fillFunction
 
 class treePlotter:
-    def __init__(self,tfile,datasets):
+    def _defaultPalette(_,color):
+        colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
+        return colorList[color % len(colorList)]
+    def __init__(self,tfile,datasets,luminosity):
         self.histogramList=[]
         self.tfile=tfile
         self.datasets=datasets
         self.weighted=False
-        self.lumi=None
+        self.lumi=luminosity
         self.numberOfEvents=dict()
-        for dataset in datasets
+        self.palette=self._defaultPalette
+        for dataset in datasets:
             self.numberOfEvents[dataset]=0
+    def setPalette(self,function):
+        self.palette=function
+    def color(self,number):
+        return self.palette(number)
     def addHistogram(self,histogram):
         self.histogramList.append(histogram)       
     def setWeightingFunction(self,wf):
         self.weightingFunction=wf
         self.weighted=True
-    def setLuminosity(self,lumi)
-        self.lumi=lumi
     def fileHandle(self,dataset,filename):
         print "Opening file %s" % filename
         tmpTfile=ROOT.TFile(filename)
         tree=tmpTfile.Get("ThreePhotonTree")
         eventCount=0
-        self.numberOfEvents[dataset]+=tmpTfile.summedWeights.GetBinContent(1)
+        numberOfEvents=tmpTfile.summedWeights.GetBinContent(1)
+        xsec=getXsec(filename.split('/')[-1].replace("ThreePhoton_","",1).replace(".root","",1))
+        fileWeight=xsec*self.lumi/float(numberOfEvents)
+        print "File weight:",fileWeight
         for event in tree:
             eventWeight=self.weightingFunction(event) if self.weighted else 1
+            eventWeight*=fileWeight
             eventCount+=1
             if(eventCount%10000 == 0):
                 print eventCount
@@ -95,14 +107,15 @@ class treePlotter:
             canvas.cd()
             constant=ROOT.TF1('tmp','1')
             for dataset,hist in histogram.histograms.iteritems():
-                hist.Draw()
+                hist.SetLineColor(self.color(0))
+                hist.Draw("HIST")
                 canvas.Print('TreePlots/%s_%s.pdf' % (histogram.title,dataset))
-                if self.lumi:
-                    datasetWeight=getXsec(dataset)*self.lumi/float(self.numberOfEvents[dataset])
-                    hist.Multiply(constant,datasetWeight)
             if self.lumi:
-                canvas.Clear()
-                for dataset,hist in histogram.histograms.iteritems():
-                    hist.Draw("SAME")
+                for number,hist in enumerate(histogram.histograms.itervalues()):
+                    hist.SetLineColor(self.color(number))
+                    if number==0:
+                        hist.Draw("HIST")
+                    else:
+                        hist.Draw("HIST SAME")
                 canvas.BuildLegend()
                 canvas.Print('TreePlots/Summary/%s.pdf' % (histogram.title))

@@ -65,6 +65,7 @@ c1=ROOT.TCanvas()
 
 plot=treePlotter(tfile,datasets)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
+plot.setLuminosity(35867.060)
 bookHistograms(plot)
 
 for dataset in datasets:

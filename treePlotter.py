@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 import ROOT
+try:
+    from DevTools-Plotting.python.xsec import getXsec
+except ImportError:
+    try:
+        from DevTools.Plotter.xsec import getXsec
+    except ImportError:
+        getXsec=None
 
 class histogram:
     def __init__(self,fillFunction=None,eventFilter=None,*args):
@@ -59,16 +66,23 @@ class treePlotter:
         self.tfile=tfile
         self.datasets=datasets
         self.weighted=False
+        self.lumi=None
+        self.numberOfEvents=dict()
+        for dataset in datasets
+            self.numberOfEvents[dataset]=0
     def addHistogram(self,histogram):
         self.histogramList.append(histogram)       
     def setWeightingFunction(self,wf):
         self.weightingFunction=wf
         self.weighted=True
+    def setLuminosity(self,lumi)
+        self.lumi=lumi
     def fileHandle(self,dataset,filename):
         print "Opening file %s" % filename
         tmpTfile=ROOT.TFile(filename)
         tree=tmpTfile.Get("ThreePhotonTree")
         eventCount=0
+        self.numberOfEvents[dataset]+=tmpTfile.summedWeights.GetBinContent(1)
         for event in tree:
             eventWeight=self.weightingFunction(event) if self.weighted else 1
             eventCount+=1
@@ -79,6 +93,16 @@ class treePlotter:
     def finish(self,canvas):
         for histogram in self.histogramList:
             canvas.cd()
+            constant=ROOT.TF1('tmp','1')
             for dataset,hist in histogram.histograms.iteritems():
                 hist.Draw()
                 canvas.Print('TreePlots/%s_%s.pdf' % (histogram.title,dataset))
+                if self.lumi:
+                    datasetWeight=getXsec(dataset)*self.lumi/float(self.numberOfEvents[dataset])
+                    hist.Multiply(constant,datasetWeight)
+            if self.lumi:
+                canvas.Clear()
+                for dataset,hist in histogram.histograms.iteritems():
+                    hist.Draw("SAME")
+                canvas.BuildLegend()
+                canvas.Print('TreePlots/Summary/%s.pdf' % (histogram.title))

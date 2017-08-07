@@ -41,13 +41,15 @@ class histogram:
             fillHist=self.histograms[dataset]
         except KeyError:
             myArgs=list(self.args)
-            myArgs[0]+='_'+dataset
-            myArgs[1]+='_'+dataset
+            myArgs[0]=self.name+'_'+dataset
+            titleList=self.title.split(';')
+            titleList[0]+='_'+dataset
+            myArgs[1]=';'.join(titleList)
             tfile.cd()
             self.histograms[dataset]=self.histType(*myArgs)
             print '%s booked!' % self.histograms[dataset]
             fillHist=self.histograms[dataset]
-        return self.histograms[dataset].Fill(self.fillFunction(event))
+        return self.histograms[dataset].Fill(self.fillFunction(event),weight)
     def isValid(self):
         return self.args and self.histType and self.name and self.title and self.fillFunction
 
@@ -68,16 +70,12 @@ class treePlotter:
         tree=tmpTfile.Get("ThreePhotonTree")
         eventCount=0
         for event in tree:
+            eventWeight=self.weightingFunction(event) if self.weighted else 1
             eventCount+=1
             if(eventCount%10000 == 0):
                 print eventCount
             for histogram in self.histogramList:
-                if eventCount==1:
-                    print len(self.histogramList)
-                if self.weighted:
-                    histogram.Fill(self.tfile,dataset,event,self.weightingFunction(event))
-                else:
-                    histogram.Fill(self.tfile,dataset,event)
+                histogram.Fill(self.tfile,dataset,event,eventWeight)
     def finish(self,canvas):
         for histogram in self.histogramList:
             canvas.cd()

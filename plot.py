@@ -1,9 +1,14 @@
-#!/bin/sh
+#!/bin/bash
+
+''':'
+rm "treePlotter.pyc"
 if [ -n "$ROOTSYS" ]; then
-    exec python "$@"
+    exec python "$0" "$@"
 else 
-    exec root6 python "$@"
-fi << 'EOF'
+    exec root6 python "$0" "$@"
+fi
+exit 1
+'''
 
 import ROOT
 import sys
@@ -42,6 +47,24 @@ def bookHistograms(plot):
     plot.addHistogram(h(lambda event: max([deltaPhi(x,event.met_phi) for x in (event.g1_phi,event.g2_phi,event.g3_phi)]),None,*pts('max(#Delta#phi) photon to MET','MVA',100,0,math.pi,lambda x:'')))
     plot.addHistogram(h(lambda event: sorted([deltaPhi(x,event.met_phi) for x in (event.g1_phi,event.g2_phi,event.g3_phi)],key=lambda y:abs(math.pi/2-y))[0],None,*pts('#Delta#phi of least parallel photon to MET','MVA',100,0,math.pi,lambda x:'')))
     plot.addHistogram(h(lambda event: sorted([deltaPhi(x,event.met_phi) for x in (event.g1_phi,event.g2_phi,event.g3_phi)],key=lambda y:abs(math.pi/2-y))[-1],None,*pts('#Delta#phi of most parallel photon to MET','MVA',100,0,math.pi,lambda x:'')))
+    allHistograms=list(plot.histogramList)
+    def MVA_Filter(photon,cut,greaterThan=True):
+        if photon in [1,2,3]:
+            return eval ("lambda event:event.g%d_mvaNonTrigValues %s %s" % (photon,">" if greaterThan else "<=",cut))
+    for histogram in allHistograms:
+        cuts= {
+        'LooseMVA' : MVA_Filter(1,-.2),
+        'TightMVA' : MVA_Filter(1,.8),
+        'LooseInvertedMVA' : MVA_Filter(1,-.2,False),
+        'TightInvertedMVA' : MVA_Filter(1,.8,False)
+        }
+        for name,cut in cuts.iteritems(): #Do some MVA cuts
+            arguments=list(histogram.args)
+            ff=histogram.fillFunction
+            arguments[0]+='_'+name
+            arguments[1].replace(';','_%s;'%name,1)
+            plot.addHistogram(h(ff,cut,*arguments))
+    print "%d histograms booked!" % len(plot.histogramList)
     
 def sortHistograms(histogramList):
     histogramList.sort(key=lambda hist:hist.Integral())
@@ -72,9 +95,7 @@ for dataset in datasets:
     histogram=None
     for filename in files:
         plot.fileHandle(dataset,filename)
-    plot.finish(c1)
+plot.finish(c1)
 
 tfile.Write()
 tfile.Close()
-
-EOF

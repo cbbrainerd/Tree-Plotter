@@ -6,12 +6,12 @@ except ImportError:
     try:
         from DevTools.Plotter.python.xsec import getXsec
     except ImportError:
-        getXsec=None
         print "getXsec could not be imported."
+        print "Weighting cannot be done properly without getXsec."
         raise
 
 class histogram:
-    def __init__(self,fillFunction=None,eventFilter=None,*args):
+    def __init__(self,fillFunction=None,eventFilters=None,*args):
         self.fillFunction=fillFunction
         if args:
             self.args=args
@@ -26,8 +26,13 @@ class histogram:
             self.title=args[1]
         except IndexError:
             pass
-        if not eventFilter:
+        if not eventFilters:
             self.eventFilters=[] #List of lambdas or functions that return True if the event should be accepted. Requires an AND of all such filters
+        else:
+            try:
+                self.eventFilters=list(eventFilters)
+            except TypeError:
+                self.eventFilters=[eventFilters]
     def addEventFilter(self,function):
         self.eventFilters.append(function)
     def hist(self,*args):
@@ -81,7 +86,7 @@ class treePlotter:
     def color(self,number):
         return self.palette(number)
     def addHistogram(self,histogram):
-        self.histogramList.append(histogram)       
+        self.histogramList.append(histogram)
     def setWeightingFunction(self,wf):
         self.weightingFunction=wf
         self.weighted=True
@@ -105,14 +110,18 @@ class treePlotter:
     def finish(self,canvas):
         for histogram in self.histogramList:
             canvas.cd()
-            constant=ROOT.TF1('tmp','1')
             for dataset,hist in histogram.histograms.iteritems():
                 hist.SetLineColor(self.color(0))
                 hist.Draw("HIST")
                 canvas.Print('TreePlots/%s_%s.pdf' % (histogram.title,dataset))
-            if self.lumi:
+            if True:
+                ROOT.gStyle.SetOptStat(0)
+                ROOT.gROOT.ForceStyle()
                 for number,hist in enumerate(histogram.histograms.itervalues()):
                     hist.SetLineColor(self.color(number))
+                    events=hist.Integral()
+                    hist.Scale(1/float(events))
+                for number,hists in enumerate(sorted(histogram.histograms.itervalues(),key=lambda h: h.GetMaximum(),reverse=True)):
                     if number==0:
                         hist.Draw("HIST")
                     else:

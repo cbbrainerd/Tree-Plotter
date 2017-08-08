@@ -60,9 +60,13 @@ class histogram:
         fillValue=self.fillFunction(event)
         retVal=None
         for number,eventFilterSet in enumerate(self.eventFilters):
+            failedFilter=False
             for eventFilter in eventFilterSet:
                 if not eventFilter(event):
-                    continue
+                    failedFilter=True
+                    break
+            if failedFilter:
+                continue
             histogramDict=self.histograms[number]
             try:
                 fillHist=histogramDict[dataset]
@@ -140,22 +144,25 @@ class treePlotter:
                 histogram.Fill(self.tfile,dataset,event,eventWeight)
     def finish(self,canvas):
         for histogram in self.histogramList:
-            canvas.cd()
-            for dataset,hist in histogram.histograms.iteritems():
-                hist.SetLineColor(self.color(0))
-                hist.Draw("HIST")
-                canvas.Print('TreePlots/%s_%s.pdf' % (histogram.title,dataset))
-            if True:
+            for filterNumber,histogramDict in enumerate(histogram.histograms):
+                canvas.cd()
                 ROOT.gStyle.SetOptStat(0)
                 ROOT.gROOT.ForceStyle()
-                for number,hist in enumerate(histogram.histograms.itervalues()):
-                    hist.SetLineColor(self.color(number))
-                    events=hist.Integral()
-                    hist.Scale(1/float(events))
-                for number,hists in enumerate(sorted(histogram.histograms.itervalues(),key=lambda h: h.GetMaximum(),reverse=True)):
-                    if number==0:
-                        hist.Draw("HIST")
-                    else:
-                        hist.Draw("HIST SAME")
-                canvas.BuildLegend()
-                canvas.Print('TreePlots/Summary/%s.pdf' % (histogram.title))
+                for dataset,hist in histogramDict.iteritems():
+                    hist.SetLineColor(self.color(0))
+                    hist.Draw("HIST")
+                    canvas.Print('TreePlots/%s.pdf' % (hist.GetName()))
+                if True:
+                    ROOT.gStyle.SetOptStat(0)
+                    ROOT.gROOT.ForceStyle()
+                    for number,hist in enumerate(histogramDict.itervalues()):
+                        hist.SetLineColor(self.color(number))
+                        events=hist.Integral()
+                        hist.Scale(1/float(events))
+                    for number,hist in enumerate(sorted(histogramDict.itervalues(),key=lambda h: h.GetMaximum(),reverse=True)):
+                        if number==0:
+                            hist.Draw("HIST")
+                        else:
+                            hist.Draw("HIST SAME")
+                    canvas.BuildLegend()
+                    canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))

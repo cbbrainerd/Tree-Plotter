@@ -12,17 +12,19 @@ except ImportError:
         raise
 
 class histogram:
-    def __init__(self,fillFunction=None,eventFilters=None,*args):
+    def __init__(self,fillFunction=None,eventFilters=None,*args,histType=ROOT.TH1F):
         self.fillFunction=fillFunction
+        self.style=None
         if args:
             self.args=args
         else:
             self.args=None
         self.histograms=[dict()]
-        self.histType=ROOT.TH1F
+        self.histType=histType
         self.name=None
         self.title=None
         self.filterNames=['NoFilter']
+        self.Fill=self._isMultidimensional
         try:
             self.name=args[0]
             self.title=args[1]
@@ -50,11 +52,48 @@ class histogram:
         self.histType=rootType
     def setTitle(self,title):
         self.title=title
+    def setStyle(self,styleFunction):
+        self.style=styleFunction
     def setName(self,name):
         self.name=name
-    def setFillFunction(self,function): #Function that takes histogram as one argument, 
+    def setFillFunction(self,function): #Function that takes histogram as one argument, and returns the value (or list for multi-dim) that should be filled
         self.fillFunction=function
-    def Fill(self,tfile,dataset,event,weight=1):
+    def _isMultidimensional(self,tfile,dataset,event,weight=1): #Determine if plot is 1-D or not by checking the signature of the return value of the fill function
+        #Sets to proper fill function for given type
+        #Only runs once per histogram class instance, to avoid the expense of checking every time
+        fv=self.fillFunction(event)
+        try:
+            (lambda *args: None)(*fv) #Can we expand? Then it's a list or a tuple or something similar, not a 1-D object (or even if it is 1-D, we want to expand every time)
+            self.Fill=self._FillMD
+            return self.Fill(tfile,dataset,event,weight)
+        except TypeError:
+            self.Fill=self._Fill1D
+            return self.Fill(tfile,dataset,event,weight)
+    def _FillMD(self,tfile,dataset,event,weight=1):
+        fillValue=self.fillFunction(event)
+        retVal=None
+        for number,eventFilterSet in enumerate(self.eventFilters):
+            failedFilter=False
+            for eventFilter in eventFilterSet:
+                if not eventFilter(event):
+                    failedFilter=True
+                    break
+            if failedFilter:
+                continue
+            histogramDict=self.histograms[number]
+            try:
+                fillHist=histogramDict[dataset]
+            except KeyError:
+                myArgs=list(self.args)
+                myArgs[0]=self.name+'_%s_%s' % (dataset,self.filterNames[number])
+                myArgs[1].replace(';','_%s_%s;' % (dataset,self.filterNames[number]),1)
+                tfile.cd()
+                histogramDict[dataset]=self.histType(*myArgs)
+                print '%s booked!' % histogramDict[dataset]
+                fillHist=histogramDict[dataset]
+            retVal=fillHist.Fill(*fillValue,weight)
+        return retVal
+    def _Fill1D(self,tfile,dataset,event,weight=1):
 #        if not self.isValid(): Don't bother checking anymore
 #            return False
         fillValue=self.fillFunction(event)
@@ -115,6 +154,7 @@ class treePlotter:
         return self.palette(number)
     def addHistogram(self,histogram):
         self.histogramList.append(histogram)
+        return self.histogramList[-1]
     def setWeightingFunction(self,wf):
         self.weightingFunction=wf
         self.weighted=True
@@ -144,15 +184,23 @@ class treePlotter:
                 histogram.Fill(self.tfile,dataset,event,eventWeight)
     def finish(self,canvas):
         for histogram in self.histogramList:
+                if histogram.style:
+                    try:
+                        for d in histogram.histograms:
+                            for h in d.itervalues():
+                                histogram.style(h)
+                    except Exception: #If style fails for any reason, just keep chugging along: we really don't want to just drop everything at this point
+                        pass 
             for filterNumber,histogramDict in enumerate(histogram.histograms):
                 canvas.cd()
-                ROOT.gStyle.SetOptStat(0)
+                options="HIST" if histogram.Fill==histogram._Fill1D else "COLZ"
+                ROOT.gStyle.SetOptStat(1)
                 ROOT.gROOT.ForceStyle()
                 for dataset,hist in histogramDict.iteritems():
                     hist.SetLineColor(self.color(0))
-                    hist.Draw("HIST")
+                    hist.Draw(options)
                     canvas.Print('TreePlots/%s.pdf' % (hist.GetName()))
-                if True:
+                if hist.fDimension==1: #Can't make summary plots for 2-D plots
                     ROOT.gStyle.SetOptStat(0)
                     ROOT.gROOT.ForceStyle()
                     for number,hist in enumerate(histogramDict.itervalues()):

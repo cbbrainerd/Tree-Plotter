@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import ROOT
 import time
+import abc
 try:
     from DevTools.Plotter.xsec import getXsec
 except ImportError:
@@ -11,8 +12,19 @@ except ImportError:
         print "Weighting cannot be done properly without getXsec."
         raise
 
+class customHistogramBase:
+    __metaclass__=abc.ABCMeta
+    def __init__(self,*args):
+        pass
+    @abc.abstractmethod
+    def finish(self):
+        pass
+    @abc.abstractmethod
+    def Fill(self,*args):
+        pass
+
 class histogram:
-    def __init__(self,fillFunction=None,eventFilters=None,*args,histType=ROOT.TH1F):
+    def __init__(self,fillFunction=None,eventFilters=None,*args,**kwargs):
         self.fillFunction=fillFunction
         self.style=None
         if args:
@@ -20,7 +32,9 @@ class histogram:
         else:
             self.args=None
         self.histograms=[dict()]
-        self.histType=histType
+        self.histType=kwargs.pop('histType',ROOT.TH1F)
+        self.buildSummary=kwargs.pop('buildSummary',None)
+        self.buildHistograms=kwargs.pop('buildHistograms',None)
         self.name=None
         self.title=None
         self.filterNames=['NoFilter']
@@ -91,7 +105,10 @@ class histogram:
                 histogramDict[dataset]=self.histType(*myArgs)
                 print '%s booked!' % histogramDict[dataset]
                 fillHist=histogramDict[dataset]
-            retVal=fillHist.Fill(*fillValue,weight)
+            if fillHist.GetDimension==2:
+                retVal=fillHist.Fill(fillValue[0],fillValue[1],weight)
+            else:
+                retVal=fillHist.Fill(fillValue[0],fillValue[1],fillValue[2],weight)
         return retVal
     def _Fill1D(self,tfile,dataset,event,weight=1):
 #        if not self.isValid(): Don't bother checking anymore
@@ -162,12 +179,16 @@ class treePlotter:
         print "Opening file %s" % filename
         tmpTfile=ROOT.TFile(filename)
         tree=tmpTfile.Get("ThreePhotonTree")
+        print type(tree)
         numberOfEvents=tmpTfile.summedWeights.GetBinContent(1)
         xsec=getXsec(filename.split('/')[-1].replace("ThreePhoton_","",1).replace(".root","",1))
-        fileWeight=xsec*self.lumi/float(numberOfEvents)
-        print "File weight:",fileWeight
+        if dataset!='Data':
+            fileWeight=xsec*self.lumi/float(numberOfEvents)
+            print "File weight:",fileWeight
+        else:
+            fileWeight=1
         for event in tree:
-            eventWeight=self.weightingFunction(event) if self.weighted else 1
+            eventWeight=self.weightingFunction(event) if (self.weighted and dataset!='Data') else 1
             eventWeight*=fileWeight
             self.eventCount+=1
             if(self.eventCount%10000 == 0):
@@ -184,33 +205,46 @@ class treePlotter:
                 histogram.Fill(self.tfile,dataset,event,eventWeight)
     def finish(self,canvas):
         for histogram in self.histogramList:
-                if histogram.style:
-                    try:
-                        for d in histogram.histograms:
-                            for h in d.itervalues():
-                                histogram.style(h)
-                    except Exception: #If style fails for any reason, just keep chugging along: we really don't want to just drop everything at this point
-                        pass 
+            if not isinstance(histogram,ROOT.TH1): #Not a ROOT.TH1, call custom "finish" method
+                #Future: Force custom objects to inherit from base classes
+                try:
+                    histogram.finish()
+                except AttributeError,NotImplementedError:
+                    pass
+            if histogram.style:
+                try:
+                    for d in histogram.histograms:
+                        for h in d.itervalues():
+                            histogram.style(h)
+                except Exception: #If style fails for any reason, just keep chugging along: we really don't want to just drop everything at this point
+                    pass 
             for filterNumber,histogramDict in enumerate(histogram.histograms):
-                canvas.cd()
-                options="HIST" if histogram.Fill==histogram._Fill1D else "COLZ"
-                ROOT.gStyle.SetOptStat(1)
-                ROOT.gROOT.ForceStyle()
-                for dataset,hist in histogramDict.iteritems():
-                    hist.SetLineColor(self.color(0))
-                    hist.Draw(options)
-                    canvas.Print('TreePlots/%s.pdf' % (hist.GetName()))
-                if hist.fDimension==1: #Can't make summary plots for 2-D plots
-                    ROOT.gStyle.SetOptStat(0)
+                if histogram.buildHistograms:
+                    histogram.buildHistograms(histogram,canvas)
+                else:
+                    canvas.cd()
+                    options="HIST" if histogram.Fill==histogram._Fill1D else "COLZ"
+                    ROOT.gStyle.SetOptStat(1)
                     ROOT.gROOT.ForceStyle()
-                    for number,hist in enumerate(histogramDict.itervalues()):
-                        hist.SetLineColor(self.color(number))
-                        events=hist.Integral()
-                        hist.Scale(1/float(events))
-                    for number,hist in enumerate(sorted(histogramDict.itervalues(),key=lambda h: h.GetMaximum(),reverse=True)):
-                        if number==0:
-                            hist.Draw("HIST")
-                        else:
-                            hist.Draw("HIST SAME")
-                    canvas.BuildLegend()
+                    for dataset,hist in histogramDict.iteritems():
+                        hist.SetLineColor(self.color(0))
+                        hist.Draw(options)
+                        canvas.Print('TreePlots/%s.pdf' % (hist.GetName()))
+                if histogram.buildSummary:
+                    histogram.buildSummary(histogram,canvas)
                     canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))
+                else:
+                    if histogram.Fill==histogram._Fill1D: #Can't make summary plots for 2-D plots
+                        ROOT.gStyle.SetOptStat(0)
+                        ROOT.gROOT.ForceStyle()
+                        for number,hist in enumerate(histogramDict.itervalues()):
+                            hist.SetLineColor(self.color(number))
+                            events=hist.Integral()
+                            hist.Scale(1/float(events))
+                        for number,hist in enumerate(sorted(histogramDict.itervalues(),key=lambda h: h.GetMaximum(),reverse=True)):
+                            if number==0:
+                                hist.Draw("HIST")
+                            else:
+                                hist.Draw("HIST SAME")
+                        canvas.BuildLegend()
+                        canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))

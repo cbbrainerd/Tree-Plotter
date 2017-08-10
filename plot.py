@@ -31,10 +31,31 @@ def bookHistograms(plot):
     def deltaPhi(phi1,phi2):
         absDP=abs(phi1-phi2)
         return 2*math.pi-absDP if absDP>math.pi else absDP
-#    def TwoDColorPlot(histogram):       
-    plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon p_T vs MET','Leading photon p_T vs MET;MET;Leading photon p_T',100,0,math.pi,1000,0,1000))
-    plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon p_T vs MET','Subleading photon p_T vs MET;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000))
-    plot.addHistogram(h(lambda event: (deltaPhi(event.g3_phi,event.met_phi),event.met_pt),None,'Third photon p_T vs MET','Third photon p_T vs MET;MET;Third photon p_T',100,0,math.pi,1000,0,1000))
+    binNames=['PPP','PPF','PFP','FPP','PFF','FPF','FFP','FFF']
+    def MVAPass(event):
+        retVal=0
+        for n,MVA in enumerate((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)):
+            retVal+=2*n if MVA > 0 else 0
+        return retVal+.5
+    def stackPlotWithData(histogram,canvas):
+        canvas.Clear()
+        MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
+        ths=ROOT.THStack('fitstack','')
+        for n,dataset in enumerate(MCdatasets):
+            h=histogram.histograms[0][dataset]
+            h.SetLineColor(histogram.color(n))
+            ths.Add(h)
+        ths.Draw()
+        h=histogram.histograms[0]['Data']
+        h.Draw('SAME')
+    plot.addHistogram(h(MVAPass,None,'Fit','Fit',8,0,8,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
+#    def TwoDColorPlot(histogram):
+    #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon p_T vs MET','Leading photon p_T vs MET;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
+    #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon p_T vs MET','Subleading photon p_T vs MET;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
+    #plot.addHistogram(h(lambda event: (deltaPhi(event.g3_phi,event.met_phi),event.met_pt),None,'Third photon p_T vs MET','Third photon p_T vs MET;MET;Third photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
+#    plot.addHistogram(h(lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)),None,*pts('Max MVA','MVA',200,-1,1,lambda x:'')))
+#    plot.addHistogram(h(lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)),None,*pts('Min MVA','MVA',200,-1,1,lambda x:'')))
+#    plot.addHistogram(h(lambda event: sorted((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues))[1],None,*pts('Middle MVA','MVA',200,-1,1,lambda x:'')))
 #    plot.addHistogram(h(lambda event: event.g1_pt,None,*pts('Leading photon p_T','p_T')))
 #    plot.addHistogram(h(lambda event: event.g2_pt,None,*pts('Subleading photon p_T','p_T')))
 #    plot.addHistogram(h(lambda event: event.g3_pt,None,*pts('Third photon photon p_T','p_T')))
@@ -61,9 +82,9 @@ def bookHistograms(plot):
     'LooseInvertedMVA' : MVA_Filter(1,-.2,False),
     'TightInvertedMVA' : MVA_Filter(1,.8,False)
     }
-    for name,cut in cuts.iteritems(): #Do some MVA cuts
-        for histogram in allHistograms:
-            histogram.addEventFilter(name,cut)
+#    for name,cut in cuts.iteritems(): #Do some MVA cuts
+#        for histogram in allHistograms:
+#            histogram.addEventFilter(name,cut)
     print "%d histograms booked!" % len(plot.histogramList)
     
 def sortHistograms(histogramList):
@@ -82,7 +103,8 @@ def myPalette(color):
     colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
     return colorList[color % len(colorList)]
 
-datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD')
+datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
+DatasetDict['Data']=['SinglePhoton']
 tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 

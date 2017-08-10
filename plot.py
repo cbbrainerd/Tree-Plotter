@@ -34,7 +34,7 @@ def bookHistograms(plot):
     binNames=['PPP','PPF','PFP','FPP','PFF','FPF','FFP','FFF']
     def MVAPass(event):
         retVal=0
-        for n,MVA in enumerate((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)):
+        for n,MVA in enumerate((event.g3_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g1_mvaNonTrigValues)):
             retVal+=2*n if MVA > 0 else 0
         return retVal+.5
     def stackPlotWithData(histogram,canvas):

@@ -36,19 +36,22 @@ def bookHistograms(plot):
         retVal=0
         for n,MVA in enumerate((event.g3_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g1_mvaNonTrigValues)):
             retVal+=2*n if MVA > 0 else 0
-        return retVal+.5
+        return retVal
     def stackPlotWithData(histogram,canvas):
+        def COLOR(color):
+            colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
+            return colorList[color % len(colorList)]
         canvas.Clear()
         MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
         ths=ROOT.THStack('fitstack','')
         for n,dataset in enumerate(MCdatasets):
             h=histogram.histograms[0][dataset]
-            h.SetLineColor(histogram.color(n))
+            h.SetLineColor(COLOR(n))
             ths.Add(h)
         ths.Draw()
         h=histogram.histograms[0]['Data']
         h.Draw('SAME')
-    plot.addHistogram(h(MVAPass,None,'Fit','Fit',8,0,8,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(MVAPass,None,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon p_T vs MET','Leading photon p_T vs MET;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon p_T vs MET','Subleading photon p_T vs MET;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))

@@ -21,6 +21,8 @@ from Datasets import DatasetDict
 from treePlotter import histogram as h
 from treePlotter import treePlotter
 
+from Plots.tdrstyle import tdrstyle
+
 def pts(x,y,binNumber=40,mini=0,maxi=1000,flavor=lambda x:"Events per %s GeV" % x):
     binSize=(maxi-mini)/binNumber
     myList="{0},{0};{1};{2}".format(x,y,flavor(binSize)).split(',')
@@ -35,22 +37,30 @@ def bookHistograms(plot):
     def MVAPass(event):
         retVal=0
         for n,MVA in enumerate((event.g3_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g1_mvaNonTrigValues)):
-            retVal+=2*n if MVA > 0 else 0
+            retVal+=2**n if MVA > 0 else 0
         return retVal
-    def stackPlotWithData(histogram,canvas):
+    def stackPlotWithData(histogramDict,canvas):
+        tdrstyle.setTDRStyle()
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
+        canvas.cd()
         canvas.Clear()
         MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
-        ths=ROOT.THStack('fitstack','')
+        ths=ROOT.THStack('fitstack','fitstack')
+        ths.SetTitle(';;Whatever')
         for n,dataset in enumerate(MCdatasets):
-            h=histogram.histograms[0][dataset]
-            h.SetLineColor(COLOR(n))
-            ths.Add(h)
-        ths.Draw()
-        h=histogram.histograms[0]['Data']
-        h.Draw('SAME')
+            h=histogramDict[dataset]
+            h.SetFillColorAlpha(COLOR(n),.5)
+            ths.Add(h)  
+        print ths.GetNhists()
+        dataHist=histogramDict['Data']
+        canvas.cd()
+        ROOT.gStyle.SetMarkerStyle(20)
+        ROOT.gROOT.ForceStyle()
+        ths.Draw('HIST')
+        dataHist.Draw('P SAME')
+        canvas.Print('TreePlots/Summary/Fit_NoFilter.pdf')
     plot.addHistogram(h(MVAPass,None,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon p_T vs MET','Leading photon p_T vs MET;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))

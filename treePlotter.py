@@ -47,8 +47,16 @@ class histogram:
         if not eventFilters:
             self.eventFilters=[[]] #List of lists lambdas or functions that return True if the event should be accepted. Requires an AND of all such filters: one histogram produced for each such list with different filters
         else:
-            print "Not yet implemented"
-            raise TypeError
+            self.eventFilters=[]
+            self.filterNames=[]
+            self.histograms=[]
+            for name,filt in eventFilters.iteritems():
+                try:
+                    self.eventFilters.append(list(filt))
+                except TypeError:   
+                    self.eventFilters.append([filt])
+                self.filterNames.append(name)
+                self.histograms.append(dict())
         #    try:
         #        self.eventFilters=list(eventFilters)
         #    except TypeError:
@@ -187,6 +195,7 @@ class treePlotter:
             print "File weight:",fileWeight
         else:
             fileWeight=1
+        assert(self.weighted) #Always want weighting, really
         for event in tree:
             eventWeight=self.weightingFunction(event) if (self.weighted and dataset!='Data') else 1
             eventWeight*=fileWeight
@@ -195,10 +204,12 @@ class treePlotter:
                 if self.totalEvents:
                     elapsed=time.time()-self.startTime
                     timeLeft=(self.totalEvents-self.eventCount)*elapsed/float(self.eventCount)
+                    #Naive time averaging, no window or anything.
                     m,s=divmod(timeLeft,60)
                     h,m=divmod(m,60)
-                    d,h=divmod(h,24)
-                    print "Estimated %d:%d:%02d:%02d remaining..." % (d,h,m,s)
+                    em,es=divmod(elapsed,60)
+                    eh,em=divmod(em,60)
+                    print "%d:%02d:%02d elapsed. Estimated %d:%02d:%02d remaining..." % (eh,em,es,h,m,s)
                 else:
                     print self.eventCount
             for histogram in self.histogramList:

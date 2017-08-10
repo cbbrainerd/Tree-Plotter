@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#To do: set up some method to access already created plots
+
 ''':'
 rm "treePlotter.pyc"
 if [ -n "$ROOTSYS" ]; then
@@ -21,7 +23,7 @@ from Datasets import DatasetDict
 from treePlotter import histogram as h
 from treePlotter import treePlotter
 
-from Plots.tdrstyle import tdrstyle
+import Plots.tdrstyle as tdrstyle
 
 def pts(x,y,binNumber=40,mini=0,maxi=1000,flavor=lambda x:"Events per %s GeV" % x):
     binSize=(maxi-mini)/binNumber
@@ -33,39 +35,49 @@ def bookHistograms(plot):
     def deltaPhi(phi1,phi2):
         absDP=abs(phi1-phi2)
         return 2*math.pi-absDP if absDP>math.pi else absDP
-    binNames=['PPP','PPF','PFP','FPP','PFF','FPF','FFP','FFF']
     def MVAPass(event):
         retVal=0
-        for n,MVA in enumerate((event.g3_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g1_mvaNonTrigValues)):
+        for n,MVA in enumerate((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)):
             retVal+=2**n if MVA > 0 else 0
         return retVal
+    filters = { 'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
+                'g3_passPreselection' : lambda event: event.g3_passPreselection == 1 }
     def stackPlotWithData(histogramDict,canvas):
-        tdrstyle.setTDRStyle()
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
         canvas.cd()
         canvas.Clear()
+        tdrstyle.setTDRStyle()
         MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
         ths=ROOT.THStack('fitstack','fitstack')
         ths.SetTitle(';;Whatever')
+        canvas.cd()
+        binNames=['','FFF','PFF','FPF','PPF','FFP','PFP','FPP','PPP']
         for n,dataset in enumerate(MCdatasets):
             h=histogramDict[dataset]
             h.SetFillColorAlpha(COLOR(n),.5)
+            for binNumber,binName in enumerate(binNames):
+                if binNumber>0:
+                    h.GetXaxis().SetBinLabel(binNumber,binName)
             ths.Add(h)  
-        print ths.GetNhists()
         dataHist=histogramDict['Data']
-        canvas.cd()
-        ROOT.gStyle.SetMarkerStyle(20)
-        ROOT.gROOT.ForceStyle()
-        ths.Draw('HIST')
+        dataHist.SetMarkerSize(5)
+        gStyle.SetMarkerSize(5)
+        dataHist.Draw('P')
+        ths.Draw('HIST SAME')
         dataHist.Draw('P SAME')
+        gStyle.SetMarkerSize(5)
+        for binNumber,binName in enumerate(binNames):
+            if binNumber>0:
+                dataHist.GetXaxis().SetBinLabel(binNumber,binName)
+                ths.GetXaxis().SetBinLabel(binNumber,binName)
         canvas.Print('TreePlots/Summary/Fit_NoFilter.pdf')
-    plot.addHistogram(h(MVAPass,None,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
-    #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon p_T vs MET','Leading photon p_T vs MET;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
-    #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon p_T vs MET','Subleading photon p_T vs MET;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
-    #plot.addHistogram(h(lambda event: (deltaPhi(event.g3_phi,event.met_phi),event.met_pt),None,'Third photon p_T vs MET','Third photon p_T vs MET;MET;Third photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
+    #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
+    #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon:MET p_T vs #Delta#phi','Subleading photon: MET p_T vs #Delta#phi;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
+    #plot.addHistogram(h(lambda event: (deltaPhi(event.g3_phi,event.met_phi),event.met_pt),None,'Third photon: MET p_T vs #Delta#phi','Third photon: MET p_T vs #Delta#phi;MET;Third photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
 #    plot.addHistogram(h(lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)),None,*pts('Max MVA','MVA',200,-1,1,lambda x:'')))
 #    plot.addHistogram(h(lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)),None,*pts('Min MVA','MVA',200,-1,1,lambda x:'')))
 #    plot.addHistogram(h(lambda event: sorted((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues))[1],None,*pts('Middle MVA','MVA',200,-1,1,lambda x:'')))
@@ -117,7 +129,8 @@ def myPalette(color):
     return colorList[color % len(colorList)]
 
 datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
-DatasetDict['Data']=['SinglePhoton']
+#datasets=DatasetDict.keys()
+DatasetDict['Data']=['SinglePhoton','DoubleEG']
 tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 

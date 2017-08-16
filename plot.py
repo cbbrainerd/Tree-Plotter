@@ -53,7 +53,8 @@ def bookHistograms(plot):
         canvas.cd()
         canvas.Clear()
         tdrstyle.setTDRStyle()
-        MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
+#        MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
+        MCdatasets=[x for x in DatasetDict.keys() if ((not 'Data' in x) and (x in histogramDict.keys()))]
         ths=ROOT.THStack('fitstack','fitstack')
         ths.SetTitle(';;Whatever')
         canvas.cd()
@@ -76,8 +77,9 @@ def bookHistograms(plot):
             if binNumber>0:
                 dataHist.GetXaxis().SetBinLabel(binNumber,binName)
                 ths.GetXaxis().SetBinLabel(binNumber,binName)
+        canvas.BuildLegend()
         canvas.Print('TreePlots/Summary/Fit_%s.pdf' % filterName)
-    plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(MVAPass,filters,'FitAllDatasets','FitAllDatasets',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon:MET p_T vs #Delta#phi','Subleading photon: MET p_T vs #Delta#phi;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
@@ -136,7 +138,8 @@ tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 
 ff=filenames.getFilenamesFunction(False)
-datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
+#datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
+datasets=DatasetDict.keys()
 plot=treePlotter(tfile,datasets,35867.060,ff)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)

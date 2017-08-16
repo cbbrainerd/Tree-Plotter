@@ -2,6 +2,9 @@
 import ROOT
 import time
 import abc
+import itertools
+from Datasets import DatasetDict
+
 try:
     from DevTools.Plotter.xsec import getXsec
 except ImportError:
@@ -151,24 +154,43 @@ class treePlotter:
     def _defaultPalette(_,color):
         colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
         return colorList[color % len(colorList)]
-    def __init__(self,tfile,datasets,luminosity,fileList=None):
+    def __init__(self,tfile,datasets,luminosity,filenamesFunction):
         self.eventCount=0
-        if fileList: #If list of files is provided at the beginning, can read through them and estimate time remaining
-            self.totalEvents=0
-            self.startTime=time.time()
-            for fn in fileList:
-                tmpTfile=ROOT.TFile(fn)
-                tree=tmpTfile.Get("ThreePhotonTree")
-                self.totalEvents+=tree.GetEntries()
-                tmpTfile.Close()
-                tfile.cd()
-        else:
-            self.totalEvents=None
+        self.subDatasetFiles=dict()
+        self.subDatasetWeights=dict()
+        self.totalEvents=0
+        self.lumi=luminosity
+        for dataset in datasets:
+            subDatasets=DatasetDict[dataset]
+            for subDataset in subDatasets:
+                self.subDatasetFiles[subDataset]=filenamesFunction(subDataset)
+                assert self.subDatasetFiles[subDataset]
+                numberOfEvents=0
+                xsec=getXsec(subDataset)
+                for fn in self.subDatasetFiles[subDataset]:
+                    tmpTfile=ROOT.TFile(fn)
+                    tree=tmpTfile.Get("ThreePhotonTree")
+                    self.totalEvents+=tree.GetEntries()
+                    if not dataset=='Data':
+                        numberOfEvents+=tmpTfile.summedWeights.GetBinContent(1)
+                    tmpTfile.Close()
+                if not dataset=='Data':
+                    self.subDatasetWeights[subDataset]=xsec*self.lumi/float(numberOfEvents)
+                else:
+                    self.subDatasetWeights[subDataset]=1
+        tfile.cd()
+        self.startTime=time.time()
+#        numberOfEvents=tmpTfile.summedWeights.GetBinContent(1)
+#        xsec=getXsec('_'.join([x for x in filename.split('/')[-1].replace("ThreePhoton_","",1).replace(".root","",1).split('_') if not x.isdigit()]))
+#        if dataset!='Data':
+#            fileWeight=xsec*self.lumi/float(numberOfEvents)
+#            print "File weight:",fileWeight
+#        else:
+#            fileWeight=1
         self.histogramList=[]
         self.tfile=tfile
         self.datasets=datasets
         self.weighted=False
-        self.lumi=luminosity
         self.numberOfEvents=dict()
         self.palette=self._defaultPalette
         for dataset in datasets:
@@ -183,21 +205,19 @@ class treePlotter:
     def setWeightingFunction(self,wf):
         self.weightingFunction=wf
         self.weighted=True
-    def fileHandle(self,dataset,filename):
+    def process(self):
+        for dataset in self.datasets:
+            for subDataset in DatasetDict[dataset]:
+                for filename in self.subDatasetFiles[subDataset]:
+                    self._fileHandle(dataset,subDataset,filename)
+    def _fileHandle(self,dataset,subDataset,filename):
         print "Opening file %s" % filename
         tmpTfile=ROOT.TFile(filename)
         tree=tmpTfile.Get("ThreePhotonTree")
-        print type(tree)
-        numberOfEvents=tmpTfile.summedWeights.GetBinContent(1)
-        xsec=getXsec(filename.split('/')[-1].replace("ThreePhoton_","",1).replace(".root","",1))
-        if dataset!='Data':
-            fileWeight=xsec*self.lumi/float(numberOfEvents)
-            print "File weight:",fileWeight
-        else:
-            fileWeight=1
         assert(self.weighted) #Always want weighting, really
+        fileWeight=self.subDatasetWeights[subDataset]
         for event in tree:
-            eventWeight=self.weightingFunction(event) if (self.weighted and dataset!='Data') else 1
+            eventWeight=self.weightingFunction(event) if dataset!='Data' else 1
             eventWeight*=fileWeight
             self.eventCount+=1
             if(self.eventCount%10000 == 0):
@@ -242,7 +262,7 @@ class treePlotter:
                         hist.Draw(options)
                         canvas.Print('TreePlots/%s.pdf' % (hist.GetName()))
                 if histogram.buildSummary:
-                    histogram.buildSummary(histogramDict,canvas)
+                    histogram.buildSummary(histogramDict,canvas,histogram.filterNames[filterNumber])
 #                    canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))
                 else:
                     if histogram.Fill==histogram._Fill1D: #Can't make summary plots for 2-D plots

@@ -23,6 +23,8 @@ from Datasets import DatasetDict
 from treePlotter import histogram as h
 from treePlotter import treePlotter
 
+import filenames
+
 import Plots.tdrstyle as tdrstyle
 
 def pts(x,y,binNumber=40,mini=0,maxi=1000,flavor=lambda x:"Events per %s GeV" % x):
@@ -40,9 +42,11 @@ def bookHistograms(plot):
         for n,MVA in enumerate((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)):
             retVal+=2**n if MVA > 0 else 0
         return retVal
-    filters = { 'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
+    filters = { 'NoFilter' : [],
+                'tightMVAcut' : lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > .8,
+                'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
                 'g3_passPreselection' : lambda event: event.g3_passPreselection == 1 }
-    def stackPlotWithData(histogramDict,canvas):
+    def stackPlotWithData(histogramDict,canvas,filterName):
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
@@ -63,16 +67,16 @@ def bookHistograms(plot):
             ths.Add(h)  
         dataHist=histogramDict['Data']
         dataHist.SetMarkerSize(5)
-        gStyle.SetMarkerSize(5)
+        ROOT.gStyle.SetMarkerSize(5)
         dataHist.Draw('P')
         ths.Draw('HIST SAME')
         dataHist.Draw('P SAME')
-        gStyle.SetMarkerSize(5)
+        ROOT.gStyle.SetMarkerSize(5)
         for binNumber,binName in enumerate(binNames):
             if binNumber>0:
                 dataHist.GetXaxis().SetBinLabel(binNumber,binName)
                 ths.GetXaxis().SetBinLabel(binNumber,binName)
-        canvas.Print('TreePlots/Summary/Fit_NoFilter.pdf')
+        canvas.Print('TreePlots/Summary/Fit_%s.pdf' % filterName)
     plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
@@ -128,24 +132,15 @@ def myPalette(color):
     colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
     return colorList[color % len(colorList)]
 
-datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
-#datasets=DatasetDict.keys()
-DatasetDict['Data']=['SinglePhoton','DoubleEG']
 tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 
-fl=[]
-for dataset in datasets:
-    fl.extend(['ROOT_Files/ThreePhoton_%s.root' % x for x in DatasetDict[dataset]])
-plot=treePlotter(tfile,datasets,35867.060,fl)
+ff=filenames.getFilenamesFunction(False)
+datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
+plot=treePlotter(tfile,datasets,35867.060,ff)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)
-
-for dataset in datasets:
-    files=['ROOT_Files/ThreePhoton_%s.root' % x for x in DatasetDict[dataset]]
-    histogram=None
-    for filename in files:
-        plot.fileHandle(dataset,filename)
+plot.process()
 plot.finish(c1)
 
 tfile.Write()

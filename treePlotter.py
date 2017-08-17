@@ -3,6 +3,7 @@ import ROOT
 import time
 import abc
 import itertools
+import re
 from Datasets import DatasetDict
 
 try:
@@ -279,3 +280,17 @@ class treePlotter:
                                 hist.Draw("HIST SAME")
                         canvas.BuildLegend()
                         canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))
+    def postProcess(self,processFunction,*args,**kwargs): #Make histograms from other histograms: takes a function to run, any number of arguments, and any number of keyword arguments. Keyword arguments beginning with /h[0-9]+/ (as a regex) should be histogram names, which will be replaced to a reference to the histogram instead. All other args and kwargs are just passed to the function wholesale
+        histogramName=re.compile('^h[0-9]+')
+        for x in [kwargs.pop(y) for y in kwargs.keys() if histogramName.match(y)]:
+            for hist in self.histogramList:
+                if x==hist.name:
+                    kwargs[x]=hist
+                    break
+            try:
+                kwargs[x]
+            except KeyError:
+                print 'Failed to find histogram "%s"' % x
+                print 'Giving up!'
+                return None
+        return processFunction(*args,**kwargs)

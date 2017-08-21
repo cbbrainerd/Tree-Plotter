@@ -53,7 +53,6 @@ def bookHistograms(plot,**kwargs):
         canvas.cd()
         canvas.Clear()
         tdrstyle.setTDRStyle()
-#        MCdatasets=('QCD','G+Jets','DiPhotonJetsBox_Sherpa')
         MCdatasets=[x for x in DatasetDict.keys() if ((not 'Data' in x) and (x in histogramDict.keys()))]
         ths=ROOT.THStack('fitstack','fitstack')
         ths.SetTitle(';;Whatever')
@@ -84,7 +83,7 @@ def bookHistograms(plot,**kwargs):
             canvas.Print('TreePlots/Summary/Fit_%s.pdf' % filterName)
         else:
             canvas.Print('TreePlots/Summary/FitAllDatasets_%s.pdf' % filterName)
-#    plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon:MET p_T vs #Delta#phi','Subleading photon: MET p_T vs #Delta#phi;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
@@ -149,8 +148,9 @@ tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 
 ff=filenames.getFilenamesFunction(False)
-datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
-plot=treePlotter(tfile,datasets,35867.060,ff)
+outputDirectory='TreePlots/QCD_Flat'
+datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD_Flat','Data')
+plot=treePlotter(tfile,datasets,35867.060,ff,outputDirectory=outputDirectory)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)
 plot.process()
@@ -166,6 +166,7 @@ plot.finish(c1)
 #plot.process()
 #plot.finish(c1)
 def ratioPlot(*args,**kwargs):
+    outputDirectory=kwargs.pop('treePlotter_outputDirectory')
     plotName=kwargs.pop('plotName')
     h1=kwargs.pop('h1')
     h2=kwargs.pop('h2')
@@ -182,7 +183,7 @@ def ratioPlot(*args,**kwargs):
             h=histogramDict1[dataset].Clone()
             h.Divide(histogramDict2[dataset])
             h.Draw()
-            canvas.Print('TreePlots/%s_%s_%s.pdf' % (plotName,dataset,filt))
+            canvas.Print('%s/%s_%s_%s.pdf' % (outputDirectory,plotName,dataset,filt))
 
 for photon in ('Leading photon','Subleading photon','Third photon'):
     try:

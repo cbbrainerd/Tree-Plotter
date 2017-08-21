@@ -4,6 +4,9 @@ import time
 import abc
 import itertools
 import re
+import os
+import errno
+
 from Datasets import DatasetDict
 
 try:
@@ -155,7 +158,15 @@ class treePlotter:
     def _defaultPalette(_,color):
         colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
         return colorList[color % len(colorList)]
-    def __init__(self,tfile,datasets,luminosity,filenamesFunction):
+    def __init__(self,tfile,datasets,luminosity,filenamesFunction,**kwargs):
+        self.outputDirectory=kwargs.pop('outputDirectory','TreePlots')
+        try:
+            os.makedirs('%s/Summary' % self.outputDirectory)
+        except OSError as e:
+            if e.errno == errno.EEXIST and os.path.isdir('%s/Summary' % self.outputDirectory):
+                pass
+            else:
+                raise
         self.eventCount=0
         self.subDatasetFiles=dict()
         self.subDatasetWeights=dict()
@@ -168,6 +179,8 @@ class treePlotter:
                 assert self.subDatasetFiles[subDataset]
                 numberOfEvents=0
                 xsec=getXsec(subDataset)
+                if xsec==0:
+                    raise KeyError
                 for fn in self.subDatasetFiles[subDataset]:
                     tmpTfile=ROOT.TFile(fn)
                     tree=tmpTfile.Get("ThreePhotonTree")
@@ -261,10 +274,10 @@ class treePlotter:
                     for dataset,hist in histogramDict.iteritems():
                         hist.SetLineColor(self.color(0))
                         hist.Draw(options)
-                        canvas.Print('TreePlots/%s.pdf' % (hist.GetName()))
+                        canvas.Print('%s/%s.pdf' % (self.outputDirectory,hist.GetName()))
                 if histogram.buildSummary:
                     histogram.buildSummary(histogramDict,canvas,histogram.filterNames[filterNumber])
-#                    canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))
+#                    canvas.Print('%s/Summary/%s_%s.pdf' % (self.outputDirectory,histogram.name,histogram.filterNames[filterNumber]))
                 else:
                     if histogram.Fill==histogram._Fill1D: #Can't make summary plots for 2-D plots
                         ROOT.gStyle.SetOptStat(0)
@@ -279,9 +292,11 @@ class treePlotter:
                             else:
                                 hist.Draw("HIST SAME")
                         canvas.BuildLegend()
-                        canvas.Print('TreePlots/Summary/%s_%s.pdf' % (histogram.name,histogram.filterNames[filterNumber]))
+                        canvas.Print('%s/Summary/%s_%s.pdf' % (self.outputDirectory,histogram.name,histogram.filterNames[filterNumber]))
     def postProcess(self,processFunction,*args,**kwargs): #Make histograms from other histograms: takes a function to run, any number of arguments, and any number of keyword arguments. Keyword arguments beginning with /h[0-9]+/ (as a regex) should be histogram names, which will be replaced to a reference to the histogram instead. All other args and kwargs are just passed to the function wholesale
         histogramName=re.compile('^h[0-9]+')
+        for x,y in vars(self).iteritems():
+            kwargs['treePlotter_%s' % x]=y #Make variables in treePlotter class available to processFunction via "kwargs.pop('treePlotter_[varName]')"
         for y in [y for y in kwargs.keys() if histogramName.match(y)]:
             x=kwargs.pop(y)
             for hist in self.histogramList:

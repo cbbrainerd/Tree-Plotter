@@ -156,17 +156,17 @@ bookHistograms(plot)
 plot.process()
 plot.finish(c1)
 
-c1=ROOT.TCanvas()
+#c1=ROOT.TCanvas()
 
-ff=filenames.getFilenamesFunction(False)
-datasets=DatasetDict.keys()
-plot=treePlotter(tfile,datasets,35867.060,ff)
-plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
-bookHistograms(plot)
-plot.process()
-plot.finish(c1)
+#ff=filenames.getFilenamesFunction(False)
+#datasets=DatasetDict.keys()
+#plot=treePlotter(tfile,datasets,35867.060,ff)
+#plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
+#bookHistograms(plot)
+#plot.process()
+#plot.finish(c1)
 def ratioPlot(*args,**kwargs):
-    plotName=kwargs.pop('name')
+    plotName=kwargs.pop('plotName')
     h1=kwargs.pop('h1')
     h2=kwargs.pop('h2')
     canvas=kwargs.pop('canvas')
@@ -188,7 +188,8 @@ for photon in ('Leading photon','Subleading photon','Third photon'):
     try:
         plot.postProcess(ratioPlot,plotName='FakeRate',h1='%s p_T' % photon,h2='%s p_T: pass MVA' % photon,canvas=c1,tfile=tfile)
     except Exception:
-        pass
+        print 'Boooo!'
+        raise
 
 #plot.addHistogram(h(lambda event: event.g1_pt,filters,*pts('Leading photon p_T','p_T')))
 #plot.addHistogram(h(lambda event: event.g2_pt,filters,*pts('Subleading photon p_T','p_T')))

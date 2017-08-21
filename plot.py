@@ -46,7 +46,8 @@ def bookHistograms(plot,**kwargs):
 #                'tightMVAcut' : lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > .8,
 #                'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
                 'g3_passPreselection' : [lambda event: event.g3_passPreselection == 1] }
-    def stackPlotWithData(histogramDict,canvas,filterName):
+    def stackPlotWithData(histogramDict,canvas,filterName,**kwargs):
+        outputDir=kwargs.pop('outputDirectory')
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
@@ -69,20 +70,20 @@ def bookHistograms(plot,**kwargs):
         dataMax=dataHist.GetMaximum()
         thsMax=ths.GetMaximum()
         if dataMax > thsMax:
-            dataHist.Draw('AXIS')
+            dataHist.Draw('P')
+            ths.Draw('HIST SAME')
         else:
-            ths.Draw('AXIS')
-        ths.Draw('HIST SAME')
-        dataHist.Draw('P SAME')
+            ths.Draw('HIST')
+            dataHist.Draw('P SAME')
         for binNumber,binName in enumerate(binNames):
             if binNumber>0:
                 dataHist.GetXaxis().SetBinLabel(binNumber,binName)
                 ths.GetXaxis().SetBinLabel(binNumber,binName)
         canvas.BuildLegend()
         if(len(MCdatasets)==3):
-            canvas.Print('TreePlots/Summary/Fit_%s.pdf' % filterName)
+            canvas.Print('%s/Summary/Fit_%s.pdf' % (outputDir,filterName))
         else:
-            canvas.Print('TreePlots/Summary/FitAllDatasets_%s.pdf' % filterName)
+            canvas.Print('%s/Summary/FitAllDatasets_%s.pdf' % (outputDir,filterName))
     plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))

@@ -172,6 +172,7 @@ class treePlotter:
         self.subDatasetWeights=dict()
         self.totalEvents=0
         self.lumi=luminosity
+        totalEventsForSubDataset=dict()
         for dataset in datasets:
             subDatasets=DatasetDict[dataset]
             for subDataset in subDatasets:
@@ -181,10 +182,13 @@ class treePlotter:
                 xsec=getXsec(subDataset)
                 if xsec==0:
                     raise KeyError
+                totalEventsForSubDataset[subDataset]=0
                 for fn in self.subDatasetFiles[subDataset]:
                     tmpTfile=ROOT.TFile(fn)
                     tree=tmpTfile.Get("ThreePhotonTree")
-                    self.totalEvents+=tree.GetEntries()
+                    tmp=tree.GetEntries()
+                    self.totalEvents+=tmp
+                    totalEventsForSubDataset[subDataset]+=tmp
                     if not dataset=='Data':
                         numberOfEvents+=tmpTfile.summedWeights.GetBinContent(1)
                     tmpTfile.Close()
@@ -192,6 +196,10 @@ class treePlotter:
                     self.subDatasetWeights[subDataset]=xsec*self.lumi/float(numberOfEvents)
                 else:
                     self.subDatasetWeights[subDataset]=1
+        with open('subDatasetWeights.log','wb') as f:
+            f.write('Weights with luminosity: %f\n' % self.lumi)
+            for x,y in self.subDatasetWeights.iteritems():
+                f.write('%s: %i events, weight: %f\n' % (x,totalEventsForSubDataset[x],y))
         tfile.cd()
         self.startTime=time.time()
 #        numberOfEvents=tmpTfile.summedWeights.GetBinContent(1)
@@ -276,7 +284,7 @@ class treePlotter:
                         hist.Draw(options)
                         canvas.Print('%s/%s.pdf' % (self.outputDirectory,hist.GetName()))
                 if histogram.buildSummary:
-                    histogram.buildSummary(histogramDict,canvas,histogram.filterNames[filterNumber],**vars(histogram))
+                    histogram.buildSummary(histogramDict,canvas,histogram.filterNames[filterNumber],vars(histogram))
 #                    canvas.Print('%s/Summary/%s_%s.pdf' % (self.outputDirectory,histogram.name,histogram.filterNames[filterNumber]))
                 else:
                     if histogram.Fill==histogram._Fill1D: #Can't make summary plots for 2-D plots

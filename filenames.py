@@ -6,8 +6,14 @@ def _hadd(dataset):
 def _notHadd(dataset):
     return glob.glob('crab_projects/*%s*/results/*.root' % dataset)
 
-def getFilenamesFunction(hadd=True):
-    if hadd:
-        return _hadd
+def _run2(dataset):
+    return glob.glob('Run2_FlatQCD_NoPreselection/*%s*/results/*.root' % dataset)
+
+def getFilenamesFunction(hadd=True,identifier=None):
+    if not identifier:
+        if hadd:
+            return _hadd
+        else:
+            return _notHadd
     else:
-        return _notHadd
+        return { 'hadd' : _hadd , 'notHadd' : _notHadd , 'Run2' : _run2 }[identifier]

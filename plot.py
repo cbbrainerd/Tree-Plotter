@@ -46,8 +46,8 @@ def bookHistograms(plot,**kwargs):
 #                'tightMVAcut' : lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > .8,
 #                'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
                 'g3_passPreselection' : [lambda event: event.g3_passPreselection == 1] }
-    def stackPlotWithData(histogramDict,canvas,filterName,**kwargs):
-        outputDir=kwargs.pop('outputDirectory')
+    def stackPlotWithData(histogramDict,canvas,filterName):
+        outputDir=kwargs['outputDirectory']
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
@@ -149,8 +149,8 @@ tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 
 ff=filenames.getFilenamesFunction(False)
-outputDirectory='TreePlots/QCD_Flat'
-datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD_Flat','Data')
+outputDirectory='TreePlots/QCD'
+datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
 plot=treePlotter(tfile,datasets,35867.060,ff,outputDirectory=outputDirectory)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)

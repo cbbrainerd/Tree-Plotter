@@ -68,6 +68,7 @@ class histogram:
         #        self.eventFilters=list(eventFilters)
         #    except TypeError:
         #        self.eventFilters=[eventFilters]
+        assert(not kwargs)
     def addEventFilter(self,name,functions):
         try:
             self.eventFilters.append(list(functions))
@@ -159,6 +160,8 @@ class treePlotter:
         colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
         return colorList[color % len(colorList)]
     def __init__(self,tfile,datasets,luminosity,filenamesFunction,**kwargs):
+        self.treeName=kwargs.pop('treeName','ThreePhotonTree')
+        self.DatasetDict=kwargs.pop('DatasetDict',DatasetDict)
         self.outputDirectory=kwargs.pop('outputDirectory','TreePlots')
         try:
             os.makedirs('%s/Summary' % self.outputDirectory)
@@ -174,7 +177,7 @@ class treePlotter:
         self.lumi=luminosity
         totalEventsForSubDataset=dict()
         for dataset in datasets:
-            subDatasets=DatasetDict[dataset]
+            subDatasets=self.DatasetDict[dataset]
             for subDataset in subDatasets:
                 self.subDatasetFiles[subDataset]=filenamesFunction(subDataset)
                 assert self.subDatasetFiles[subDataset]
@@ -185,7 +188,7 @@ class treePlotter:
                 totalEventsForSubDataset[subDataset]=0
                 for fn in self.subDatasetFiles[subDataset]:
                     tmpTfile=ROOT.TFile(fn)
-                    tree=tmpTfile.Get("ThreePhotonTree")
+                    tree=tmpTfile.Get(self.treeName)
                     tmp=tree.GetEntries()
                     self.totalEvents+=tmp
                     totalEventsForSubDataset[subDataset]+=tmp
@@ -229,13 +232,13 @@ class treePlotter:
         self.weighted=True
     def process(self):
         for dataset in self.datasets:
-            for subDataset in DatasetDict[dataset]:
+            for subDataset in self.DatasetDict[dataset]:
                 for filename in self.subDatasetFiles[subDataset]:
                     self._fileHandle(dataset,subDataset,filename)
     def _fileHandle(self,dataset,subDataset,filename):
         print "Opening file %s" % filename
         tmpTfile=ROOT.TFile(filename)
-        tree=tmpTfile.Get("ThreePhotonTree")
+        tree=tmpTfile.Get(self.treeName)
         assert(self.weighted) #Always want weighting, really
         fileWeight=self.subDatasetWeights[subDataset]
         for event in tree:

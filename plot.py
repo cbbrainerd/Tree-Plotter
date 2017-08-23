@@ -45,7 +45,8 @@ def bookHistograms(plot,**kwargs):
     filters = { 'NoFilter' : [],
 #                'tightMVAcut' : lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > .8,
 #                'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
-                'g3_passPreselection' : [lambda event: event.g3_passPreselection == 1] }
+#                'g3_passPreselection' : [lambda event: event.g3_passPreselection == 1] 
+    }
     def stackPlotWithData(histogramDict,canvas,filterName):
         outputDir=kwargs['outputDirectory']
         def COLOR(color):
@@ -84,7 +85,10 @@ def bookHistograms(plot,**kwargs):
             canvas.Print('%s/Summary/Fit_%s.pdf' % (outputDir,filterName))
         else:
             canvas.Print('%s/Summary/FitAllDatasets_%s.pdf' % (outputDir,filterName))
-    plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(lambda event:event.wm_mt,None,'Transverse Mass','Transverse Mass',1000,0,1000))
+    plot.addHistogram(h(lambda event:event.wm_deltaPhi,None,'MET to Muon #Delta #phi','MET to Muon #Delta #phi',200,-math.pi,math.pi))
+    plot.addHistogram(h(lambda event:event.z_deltaR,None,'Muon to #gamma #Delta R','Muon to #gamma #Delta R',200,-math.pi,math.pi))
+    #plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g2_phi,event.met_phi),event.met_pt),None,'Subleading photon:MET p_T vs #Delta#phi','Subleading photon: MET p_T vs #Delta#phi;MET;Subleading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
@@ -92,15 +96,15 @@ def bookHistograms(plot,**kwargs):
 #    plot.addHistogram(h(lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)),None,*pts('Max MVA','MVA',200,-1,1,lambda x:'')))
 #    plot.addHistogram(h(lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)),None,*pts('Min MVA','MVA',200,-1,1,lambda x:'')))
 #    plot.addHistogram(h(lambda event: sorted((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues))[1],None,*pts('Middle MVA','MVA',200,-1,1,lambda x:'')))
-    plot.addHistogram(h(lambda event: event.g1_pt,filters,*pts('Leading photon p_T','p_T')))
-    plot.addHistogram(h(lambda event: event.g2_pt,filters,*pts('Subleading photon p_T','p_T')))
-    plot.addHistogram(h(lambda event: event.g3_pt,filters,*pts('Third photon p_T','p_T')))
-    passMVA1=lambda event: event.g1_mvaNonTrigValues > 0
-    passMVA2=lambda event: event.g1_mvaNonTrigValues > 0
-    passMVA3=lambda event: event.g1_mvaNonTrigValues > 0
-    plot.addHistogram(h(lambda event: event.g1_pt,{x:list(y)+[passMVA1] for (x,y) in filters.iteritems()},*pts('Leading photon p_T: pass MVA','p_T')))
-    plot.addHistogram(h(lambda event: event.g2_pt,{x:list(y)+[passMVA2] for (x,y) in filters.iteritems()},*pts('Subleading photon p_T: pass MVA','p_T')))
-    plot.addHistogram(h(lambda event: event.g3_pt,{x:list(y)+[passMVA3] for (x,y) in filters.iteritems()},*pts('Third photon p_T: pass MVA','p_T')))
+    #plot.addHistogram(h(lambda event: event.g1_pt,filters,*pts('Leading photon p_T','p_T')))
+    #plot.addHistogram(h(lambda event: event.g2_pt,filters,*pts('Subleading photon p_T','p_T')))
+    #plot.addHistogram(h(lambda event: event.g3_pt,filters,*pts('Third photon p_T','p_T')))
+    #passMVA1=lambda event: event.g1_mvaNonTrigValues > 0
+    #passMVA2=lambda event: event.g1_mvaNonTrigValues > 0
+    #passMVA3=lambda event: event.g1_mvaNonTrigValues > 0
+    #plot.addHistogram(h(lambda event: event.g1_pt,{x:list(y)+[passMVA1] for (x,y) in filters.iteritems()},*pts('Leading photon p_T: pass MVA','p_T')))
+    #plot.addHistogram(h(lambda event: event.g2_pt,{x:list(y)+[passMVA2] for (x,y) in filters.iteritems()},*pts('Subleading photon p_T: pass MVA','p_T')))
+    #plot.addHistogram(h(lambda event: event.g3_pt,{x:list(y)+[passMVA3] for (x,y) in filters.iteritems()},*pts('Third photon p_T: pass MVA','p_T')))
 #    plot.addHistogram(h(lambda event: event.g1_eta,None,*pts('Leading photon #eta','#eta',100,0,5)))
 #    plot.addHistogram(h(lambda event: event.g2_eta,None,*pts('Subleading photon #eta','#eta',100,0,5)))
 #    plot.addHistogram(h(lambda event: event.g3_eta,None,*pts('Third photon photon #eta','#eta',100,0,5)))
@@ -148,10 +152,11 @@ def myPalette(color):
 tfile=ROOT.TFile('treePlotterOutput.root','UPDATE')
 c1=ROOT.TCanvas()
 
-ff=filenames.getFilenamesFunction(False)
-outputDirectory='TreePlots/QCD'
-datasets=('DiPhotonJetsBox_Sherpa','G+Jets','QCD','Data')
-plot=treePlotter(tfile,datasets,35867.060,ff,outputDirectory=outputDirectory)
+ff=filenames.getFilenamesFunction('WGFakeRate')
+outputDirectory='TreePlots/WGFakeRate'
+datasets=('W+Jets','Data')
+DatasetDict['W+Jets']=[x for x in DatasetDict['W+Jets'] if 'WJets' in x]
+plot=treePlotter(tfile,datasets,35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='WGFakeRateTree')
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)
 plot.process()
@@ -186,12 +191,13 @@ def ratioPlot(*args,**kwargs):
             h.Draw()
             canvas.Print('%s/%s_%s_%s.pdf' % (outputDirectory,plotName,dataset,filt))
 
-for photon in ('Leading photon','Subleading photon','Third photon'):
-    try:
-        plot.postProcess(ratioPlot,plotName='FakeRate',h1='%s p_T' % photon,h2='%s p_T: pass MVA' % photon,canvas=c1,tfile=tfile)
-    except Exception:
-        print 'Boooo!'
-        raise
+if False:
+    for photon in ('Leading photon','Subleading photon','Third photon'):
+        try:
+            plot.postProcess(ratioPlot,plotName='FakeRate',h1='%s p_T' % photon,h2='%s p_T: pass MVA' % photon,canvas=c1,tfile=tfile)
+        except Exception:
+            print 'Boooo!'
+            raise
 
 #plot.addHistogram(h(lambda event: event.g1_pt,filters,*pts('Leading photon p_T','p_T')))
 #plot.addHistogram(h(lambda event: event.g2_pt,filters,*pts('Subleading photon p_T','p_T')))

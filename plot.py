@@ -43,19 +43,24 @@ def bookHistograms(plot,**kwargs):
             retVal+=2**n if MVA > 0 else 0
         return retVal
     filters = { 'NoFilter' : [],
+                'TransverseMass>80' : [lambda event: event.wm_mt > 80],
+                'DeltaR>1' : [lambda event: event.z_deltaR > 1],
+                'NotTransverseMass>80' : [lambda event: not event.wm_mt > 80],
+                'NotDeltaR>1' : [lambda event: not event.z_deltaR > 1],
 #                'tightMVAcut' : lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > .8,
 #                'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
 #                'g3_passPreselection' : [lambda event: event.g3_passPreselection == 1] 
     }
-    def stackPlotWithData(histogramDict,canvas,filterName):
+    def stackPlotWithData(histogramDict,canvas,filterName,kwargs,histargs):
         outputDir=kwargs['outputDirectory']
+        histName=histargs['name']
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
         canvas.cd()
         canvas.Clear()
-        tdrstyle.setTDRStyle()
-        MCdatasets=[x for x in DatasetDict.keys() if ((not 'Data' in x) and (x in histogramDict.keys()))]
+        MCdatasets=[x for x in histogramDict.keys() if not 'Data' in x]
+        MCdatasets.sort(key=lambda x: histogramDict[x].Integral())
         ths=ROOT.THStack('fitstack','fitstack')
         ths.SetTitle(';;Whatever')
         binNames=['','FFF','PFF','FPF','PPF','FFP','PFP','FPP','PPP']
@@ -63,9 +68,9 @@ def bookHistograms(plot,**kwargs):
             h=histogramDict[dataset]
             h.SetTitle(dataset)
             h.SetFillColorAlpha(COLOR(n),.5)
-            for binNumber,binName in enumerate(binNames):
-                if binNumber>0:
-                    h.GetXaxis().SetBinLabel(binNumber,binName)
+#            for binNumber,binName in enumerate(binNames):
+#                if binNumber>0:
+#                    h.GetXaxis().SetBinLabel(binNumber,binName)
             ths.Add(h)  
         dataHist=histogramDict['Data']
         dataMax=dataHist.GetMaximum()
@@ -76,18 +81,16 @@ def bookHistograms(plot,**kwargs):
         else:
             ths.Draw('HIST')
             dataHist.Draw('P SAME')
-        for binNumber,binName in enumerate(binNames):
-            if binNumber>0:
-                dataHist.GetXaxis().SetBinLabel(binNumber,binName)
-                ths.GetXaxis().SetBinLabel(binNumber,binName)
+#        for binNumber,binName in enumerate(binNames):
+#            if binNumber>0:
+#                dataHist.GetXaxis().SetBinLabel(binNumber,binName)
+#                ths.GetXaxis().SetBinLabel(binNumber,binName)
         canvas.BuildLegend()
-        if(len(MCdatasets)==3):
-            canvas.Print('%s/Summary/Fit_%s.pdf' % (outputDir,filterName))
-        else:
-            canvas.Print('%s/Summary/FitAllDatasets_%s.pdf' % (outputDir,filterName))
-    plot.addHistogram(h(lambda event:event.wm_mt,None,'Transverse Mass','Transverse Mass',1000,0,1000))
-    plot.addHistogram(h(lambda event:event.wm_deltaPhi,None,'MET to Muon #Delta #phi','MET to Muon #Delta #phi',200,-math.pi,math.pi))
-    plot.addHistogram(h(lambda event:event.z_deltaR,None,'Muon to #gamma #Delta R','Muon to #gamma #Delta R',200,-math.pi,math.pi))
+        tdrstyle.setTDRStyle()
+        canvas.Print('%s/Summary/%s_%s.pdf' % (outputDir,histName,filterName))
+    plot.addHistogram(h(lambda event:event.wm_mt,filters,'Transverse Mass','Transverse Mass',200,0,200,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(lambda event:event.wm_deltaPhi,filters,'MET to Muon #Delta #phi','MET to Muon #Delta #phi',200,-math.pi,math.pi,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(lambda event:event.z_deltaR,filters,'Muon to #gamma #DeltaR','Muon to #gamma #DeltaR',100,0,10,buildSummary=stackPlotWithData))
     #plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
@@ -154,9 +157,13 @@ c1=ROOT.TCanvas()
 
 ff=filenames.getFilenamesFunction('WGFakeRate')
 outputDirectory='TreePlots/WGFakeRate'
-datasets=('W+Jets','Data')
-DatasetDict['W+Jets']=[x for x in DatasetDict['W+Jets'] if 'WJets' in x]
-plot=treePlotter(tfile,datasets,35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='WGFakeRateTree')
+#datasets=('WJetsToLNu','Data','T+Jets','WZ+G+Jets','T+G+Jets')
+#datasets=DatasetDict.keys()
+DatasetsSets= {
+'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','QCD')
+}
+analysis='WGFakeRate'
+plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree')
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)
 plot.process()

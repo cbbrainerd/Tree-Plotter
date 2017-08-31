@@ -287,7 +287,7 @@ class treePlotter:
                         hist.Draw(options)
                         canvas.Print('%s/%s.pdf' % (self.outputDirectory,hist.GetName()))
                 if histogram.buildSummary:
-                    histogram.buildSummary(histogramDict,canvas,histogram.filterNames[filterNumber],vars(histogram))
+                    histogram.buildSummary(histogramDict,canvas,histogram.filterNames[filterNumber],vars(self),vars(histogram))
 #                    canvas.Print('%s/Summary/%s_%s.pdf' % (self.outputDirectory,histogram.name,histogram.filterNames[filterNumber]))
                 else:
                     if histogram.Fill==histogram._Fill1D: #Can't make summary plots for 2-D plots

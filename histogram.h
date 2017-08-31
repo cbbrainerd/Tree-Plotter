@@ -9,11 +9,16 @@
 #include "TTree.h"
 #include "TBranch.h"
 
+class Event;
+
 template<class Event,class... Doubles> 
 class histogram {
+public:
+    typedef std::function<std::tuple<Doubles>(Event)> ffType;
+    typedef std::function<Float_t(Event)> wfType;
 private:
-    std::function<std::tuple<Doubles...>(Event)> fillFunction_;
-    std::function<Float_t(Event)> weightFunction_;
+    ffType fillFunction_;
+    wfType weightFunction_;
     std::unique_ptr<TH1> histogramTemplate_;
     std::map<std::string,std::unique_ptr<TH1> > histograms_;
 public:
@@ -55,3 +60,26 @@ public:
 typedef histogram<Event,Float_t> H1;
 typedef histogram<Event,Float_t,Float_t> H2;
 typedef histogram<Event,Float_t,Float_t,Float_t> H3;
+
+
+template<class Event,class... Histogram1>
+class Plotter {
+    std::vector<std::string> Datasets;
+    Plotter(std::vector<std::string> Datasets);
+    virtual void process() override {};
+};
+
+template<class Event,class Histogram1,class... Histograms>
+class Plotter<Event,Histogram1,Histograms...> : Plotter<Event,Histograms...>
+{
+    Plotter<Event,Histograms...> child;
+    Histogram1 mySpecialHistogram;
+    template<class... classes>
+    Plotter(std::unique_ptr<Histogram1> h,classes... c) : child(classes... c) {
+        mySpecialHistogram=h;
+    }
+    void process() {
+        
+    }
+};
+

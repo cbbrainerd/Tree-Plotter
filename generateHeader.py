@@ -47,3 +47,4 @@ def generateHeader(analysis,usedBranches=None):
             f.write('\n\t\t');
             f.write('tree->SetBranchAddress("%s",&%s);' % (branchName,cName));
         f.write('\n\t}\n};');
+    return '%s_Event.h' % analysis

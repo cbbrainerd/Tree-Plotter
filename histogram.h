@@ -100,6 +100,9 @@ class Plotter {
     void process() {
         for(auto& Dataset : Datasets_) processDataset(Dataset);
     }
-    Plotter(const char* treeName,std::vector<baseHistogram*> histograms,std::vector<std::string> Datasets, std::vector<const char*> filenames) : treeName_(treeName), histograms_(histograms) , Datasets_(Datasets) , filenames_(filenames) , eventCount(0) {}
+    Plotter(const char* treeName,std::vector<std::string> Datasets, std::vector<const char*> filenames) : treeName_(treeName), Datasets_(Datasets) , filenames_(filenames) , eventCount(0) {}
+    template<class x>
+    void addHistogram(x* p) { addHistogram(static_cast<baseHistogram*>(p)); }
+    void addHistogram(baseHistogram* bh) { histograms_.push_back(bh); }
 };
 

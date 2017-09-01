@@ -6,6 +6,7 @@ import itertools
 import re
 import os
 import errno
+import collections
 
 from Datasets import DatasetDict
 
@@ -31,51 +32,43 @@ class customHistogramBase:
         pass
 
 class histogram:
-    def __init__(self,fillFunction=None,eventFilters=None,*args,**kwargs):
+    def __init__(self,fillFunction=None,_=None,*args,**kwargs):
         self.fillFunction=fillFunction
         self.style=None
         if args:
             self.args=args
         else:
             self.args=None
-        self.histograms=[dict()]
+        self.histograms=None
         self.histType=kwargs.pop('histType',ROOT.TH1F)
         self.buildSummary=kwargs.pop('buildSummary',None)
         self.buildHistograms=kwargs.pop('buildHistograms',None)
         self.name=None
         self.title=None
-        self.filterNames=['NoFilter']
+        self.filterNames=None
         self.Fill=self._isMultidimensional
         try:
             self.name=args[0]
             self.title=args[1]
         except IndexError:
             pass
-        if not eventFilters:
-            self.eventFilters=[[]] #List of lists lambdas or functions that return True if the event should be accepted. Requires an AND of all such filters: one histogram produced for each such list with different filters
-        else:
-            self.eventFilters=[]
-            self.filterNames=[]
-            self.histograms=[]
-            for name,filt in eventFilters.iteritems():
-                try:
-                    self.eventFilters.append(list(filt))
-                except TypeError:   
-                    self.eventFilters.append([filt])
-                self.filterNames.append(name)
-                self.histograms.append(dict())
-        #    try:
-        #        self.eventFilters=list(eventFilters)
-        #    except TypeError:
-        #        self.eventFilters=[eventFilters]
+        self.histograms=dict()
+        self.histogramFills=None
         assert(not kwargs)
-    def addEventFilter(self,name,functions):
-        try:
-            self.eventFilters.append(list(functions))
-        except TypeError:
-            self.eventFilters.append([functions])
-        self.histograms.append(dict())
-        self.filterNames.append(name)
+    def switchDataset(self,tfile,dataset):
+        if not dataset in self.histograms:
+            tfile.cd()
+            self.histograms[dataset]=[]
+            for filterName in self.filterNames:
+                myArgs=list(self.args)
+                myArgs[0]=self.name+'_%s_%s' % (dataset,filterName)
+                myArgs[1].replace(';','_%s_%s;' % (dataset,filterName),1)
+                self.histograms[dataset].append(self.histType(*myArgs))
+                print '%s booked!' % self.histograms[dataset]
+        self.histogramFills=[hf.Fill for hf in self.histograms[dataset]]
+    def setFilterNames(self,filterNames):
+        self.filterNames=filterNames
+        self.number=len(filterNames)
     def hist(self,*args):
         self.args=args
     def setType(self,rootType):
@@ -88,70 +81,27 @@ class histogram:
         self.name=name
     def setFillFunction(self,function): #Function that takes histogram as one argument, and returns the value (or list for multi-dim) that should be filled
         self.fillFunction=function
-    def _isMultidimensional(self,tfile,dataset,event,weight=1): #Determine if plot is 1-D or not by checking the signature of the return value of the fill function
+    def _isMultidimensional(self,*args): #Determine if plot is 1-D or not by checking the signature of the return value of the fill function
         #Sets to proper fill function for given type
         #Only runs once per histogram class instance, to avoid the expense of checking every time
+        event=args[0]
         fv=self.fillFunction(event)
         try:
             (lambda *args: None)(*fv) #Can we expand? Then it's a list or a tuple or something similar, not a 1-D object (or even if it is 1-D, we want to expand every time)
+            if not isinstance(fv,tuple): #Needs to be a python tuple
+                off=self.fillFunction
+                self.fillFunction=lambda event: tuple(off(event))
             self.Fill=self._FillMD
-            return self.Fill(tfile,dataset,event,weight)
+            return self.Fill(*args)
         except TypeError:
             self.Fill=self._Fill1D
-            return self.Fill(tfile,dataset,event,weight)
-    def _FillMD(self,tfile,dataset,event,weight=1):
+            return self.Fill(*args)
+    def _FillMD(self,event,filters,weight=1):
+        fillValue=self.fillFunction(event)+(weight,)
+        [self.histogramFills[n](*fillValue) for n in xrange(self.number) if filters[n]]
+    def _Fill1D(self,event,filters,weight=1):
         fillValue=self.fillFunction(event)
-        retVal=None
-        for number,eventFilterSet in enumerate(self.eventFilters):
-            failedFilter=False
-            for eventFilter in eventFilterSet:
-                if not eventFilter(event):
-                    failedFilter=True
-                    break
-            if failedFilter:
-                continue
-            histogramDict=self.histograms[number]
-            try:
-                fillHist=histogramDict[dataset]
-            except KeyError:
-                myArgs=list(self.args)
-                myArgs[0]=self.name+'_%s_%s' % (dataset,self.filterNames[number])
-                myArgs[1].replace(';','_%s_%s;' % (dataset,self.filterNames[number]),1)
-                tfile.cd()
-                histogramDict[dataset]=self.histType(*myArgs)
-                print '%s booked!' % histogramDict[dataset]
-                fillHist=histogramDict[dataset]
-            if fillHist.GetDimension==2:
-                retVal=fillHist.Fill(fillValue[0],fillValue[1],weight)
-            else:
-                retVal=fillHist.Fill(fillValue[0],fillValue[1],fillValue[2],weight)
-        return retVal
-    def _Fill1D(self,tfile,dataset,event,weight=1):
-#        if not self.isValid(): Don't bother checking anymore
-#            return False
-        fillValue=self.fillFunction(event)
-        retVal=None
-        for number,eventFilterSet in enumerate(self.eventFilters):
-            failedFilter=False
-            for eventFilter in eventFilterSet:
-                if not eventFilter(event):
-                    failedFilter=True
-                    break
-            if failedFilter:
-                continue
-            histogramDict=self.histograms[number]
-            try:
-                fillHist=histogramDict[dataset]
-            except KeyError:
-                myArgs=list(self.args)
-                myArgs[0]=self.name+'_%s_%s' % (dataset,self.filterNames[number])
-                myArgs[1].replace(';','_%s_%s;' % (dataset,self.filterNames[number]),1)
-                tfile.cd()
-                histogramDict[dataset]=self.histType(*myArgs)
-                print '%s booked!' % histogramDict[dataset]
-                fillHist=histogramDict[dataset]
-            retVal=fillHist.Fill(fillValue,weight)
-        return retVal
+        [self.histogramFills[n](fillValue,weight) for n in xrange(self.number) if filters[n]]
     def isValid(self):
         return self.args and self.histType and self.name and self.title and self.fillFunction
 
@@ -163,6 +113,7 @@ class treePlotter:
         self.treeName=kwargs.pop('treeName','ThreePhotonTree')
         self.DatasetDict=kwargs.pop('DatasetDict',DatasetDict)
         self.outputDirectory=kwargs.pop('outputDirectory','TreePlots')
+        self.currentDataset=None
         try:
             os.makedirs('%s/Summary' % self.outputDirectory)
         except OSError as e:
@@ -189,6 +140,8 @@ class treePlotter:
                 for fn in self.subDatasetFiles[subDataset]:
                     tmpTfile=ROOT.TFile(fn)
                     tree=tmpTfile.Get(self.treeName)
+                    if not tree:
+                        print fn,self.treeName
                     tmp=tree.GetEntries()
                     self.totalEvents+=tmp
                     totalEventsForSubDataset[subDataset]+=tmp
@@ -214,12 +167,17 @@ class treePlotter:
 #            fileWeight=1
         self.histogramList=[]
         self.tfile=tfile
+        self.filters=collections.OrderedDict([('NoFilter',lambda event: True)])
         self.datasets=datasets
         self.weighted=False
         self.numberOfEvents=dict()
         self.palette=self._defaultPalette
         for dataset in datasets:
             self.numberOfEvents[dataset]=0
+    def addFilter(self,name,function):
+        self.filters.append((name,function))
+    def setFilters(self,filters):
+        self.filters=collections.OrderedDict(filters)
     def setPalette(self,function):
         self.palette=function
     def color(self,number):
@@ -231,11 +189,17 @@ class treePlotter:
         self.weightingFunction=wf
         self.weighted=True
     def process(self):
+        for histogram in self.histogramList:
+            histogram.setFilterNames(self.filters.keys())
         for dataset in self.datasets:
             for subDataset in self.DatasetDict[dataset]:
                 for filename in self.subDatasetFiles[subDataset]:
                     self._fileHandle(dataset,subDataset,filename)
     def _fileHandle(self,dataset,subDataset,filename):
+        if dataset!=self.currentDataset:
+            for histogram in self.histogramList:
+                histogram.switchDataset(self.tfile,dataset)
+            self.currentDataset=dataset
         print "Opening file %s" % filename
         tmpTfile=ROOT.TFile(filename)
         tree=tmpTfile.Get(self.treeName)
@@ -244,6 +208,7 @@ class treePlotter:
         for event in tree:
             eventWeight=self.weightingFunction(event) if dataset!='Data' else 1
             eventWeight*=fileWeight
+            filters=[x(event) for x in self.filters.itervalues()]
             self.eventCount+=1
             if(self.eventCount%10000 == 0):
                 if self.totalEvents:
@@ -258,7 +223,7 @@ class treePlotter:
                 else:
                     print self.eventCount
             for histogram in self.histogramList:
-                histogram.Fill(self.tfile,dataset,event,eventWeight)
+                histogram.Fill(event,filters,eventWeight)
     def finish(self,canvas):
         for histogram in self.histogramList:
             if not isinstance(histogram,ROOT.TH1): #Not a ROOT.TH1, call custom "finish" method

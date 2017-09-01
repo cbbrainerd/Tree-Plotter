@@ -42,15 +42,6 @@ def bookHistograms(plot,**kwargs):
         for n,MVA in enumerate((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)):
             retVal+=2**n if MVA > 0 else 0
         return retVal
-    filters = { 'NoFilter' : [],
-                'TransverseMass>80' : [lambda event: event.wm_mt > 80],
-                'DeltaR>1' : [lambda event: event.z_deltaR > 1],
-                'NotTransverseMass>80' : [lambda event: not event.wm_mt > 80],
-                'NotDeltaR>1' : [lambda event: not event.z_deltaR > 1],
-#                'tightMVAcut' : lambda event: max((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > .8,
-#                'looseMVAcut' : lambda event: min((event.g1_mvaNonTrigValues,event.g2_mvaNonTrigValues,event.g3_mvaNonTrigValues)) > -.8,
-#                'g3_passPreselection' : [lambda event: event.g3_passPreselection == 1] 
-    }
     def stackPlotWithData(histogramDict,canvas,filterName,kwargs,histargs):
         outputDir=kwargs['outputDirectory']
         histName=histargs['name']
@@ -163,7 +154,14 @@ DatasetsSets= {
 'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','QCD')
 }
 analysis='WGFakeRate'
-plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree')
+plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis)
+filters = ( ('NoFilter' , lambda event: True ),
+            ('TransverseMass>80' , lambda event: event.wm_mt > 80),
+            ('DeltaR>1' , lambda event: event.z_deltaR > 1),
+            ('NotTransverseMass>80' , lambda event: not event.wm_mt > 80),
+            ('NotDeltaR>1' , lambda event: not event.z_deltaR > 1),
+          )
+plot.setFilters(filters)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)
 plot.process()

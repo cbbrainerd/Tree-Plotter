@@ -105,4 +105,3 @@ class Plotter {
     void addHistogram(x* p) { addHistogram(static_cast<baseHistogram*>(p)); }
     void addHistogram(baseHistogram* bh) { histograms_.push_back(bh); }
 };
-

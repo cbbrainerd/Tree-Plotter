@@ -7,6 +7,7 @@ import re
 import os
 import errno
 import collections
+import Plots.tdrstyle as tdrstyle
 
 from Datasets import DatasetDict
 
@@ -32,6 +33,18 @@ class customHistogramBase:
         pass
 
 class histogram:
+    def finish(self,canvas,outputDir,options='',style=None):
+        canvas.cd()
+        for histograms in self.histograms.itervalues():
+            for histogram in histograms:
+                name=histogram.GetName()
+                histogram.Draw(options)
+                if style:
+                    style.cd()
+                else:
+                    tdrstyle.setTDRStyle()
+                canvas.Print('%s/%s.pdf' % (outputDir,name))
+            self.buildSummary(self,outputDirectory=outputDir,canvas=canvas)
     def __init__(self,fillFunction=None,_=None,*args,**kwargs):
         self.fillFunction=fillFunction
         self.style=None
@@ -39,7 +52,6 @@ class histogram:
             self.args=args
         else:
             self.args=None
-        self.histograms=None
         self.histType=kwargs.pop('histType',ROOT.TH1F)
         self.buildSummary=kwargs.pop('buildSummary',None)
         self.buildHistograms=kwargs.pop('buildHistograms',None)
@@ -131,7 +143,9 @@ class treePlotter:
             subDatasets=self.DatasetDict[dataset]
             for subDataset in subDatasets:
                 self.subDatasetFiles[subDataset]=filenamesFunction(subDataset)
-                assert self.subDatasetFiles[subDataset]
+                if not self.subDatasetFiles[subDataset]:
+                    print subDataset
+                    assert False
                 numberOfEvents=0
                 xsec=getXsec(subDataset)
                 if xsec==0:
@@ -225,6 +239,9 @@ class treePlotter:
             for histogram in self.histogramList:
                 histogram.Fill(event,filters,eventWeight)
     def finish(self,canvas):
+        for histogram in self.histogramList:
+            histogram.finish(canvas,self.outputDirectory)
+        return
         for histogram in self.histogramList:
             if not isinstance(histogram,ROOT.TH1): #Not a ROOT.TH1, call custom "finish" method
                 #Future: Force custom objects to inherit from base classes

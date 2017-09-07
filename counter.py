@@ -57,7 +57,6 @@ class counter:
             self.cutCounts[subdataset]=0
         self.tree=ROOT.TTree(dataset,dataset)
         self.trees[dataset]=self.tree
-        print self.tree.GetDirectory()
         for label in self.branches:
             self._initTreeBranch(label)
     def _evalFunction(self,event,function,pyType):
@@ -117,7 +116,11 @@ class counter:
                 self._handleFile(dataset,subDataset,fn)
         self.tree.Write()
         for subdataset in DatasetDict[dataset]:
-            self.fileOut.write('%s:\n' % subdataset)
+            self.fileOut.write('%s:' % subdataset)
+            if not self.cutCount[subdataset]:
+                self.fileOut.write('No events passing selection cut.\n')
+            else:
+                self.fileOut.write('\n');
             for cut in self.countFilters:
                 self.fileOut.write('%s: %s %d/%d: %f\n' % (subdataset,cut,self.countCounts[cut][subdataset],self.cutCounts[subdataset],self.countCounts[cut][subdataset]/float(self.cutCounts[subdataset]) if self.cutCounts[subdataset]>0 else -1))
     def analyze(self):

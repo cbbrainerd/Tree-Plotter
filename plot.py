@@ -3,7 +3,6 @@
 #To do: set up some method to access already created plots
 
 ''':'
-rm "treePlotter.pyc"
 if [ -n "$ROOTSYS" ]; then
     exec python "$0" "$@"
 else 
@@ -51,14 +50,13 @@ def bookHistograms(plot,**kwargs):
         def COLOR(color):
             colorList=[ROOT.kRed, ROOT.kGreen, ROOT.kBlue, ROOT.kBlack, ROOT.kMagenta, ROOT.kCyan, ROOT.kOrange, ROOT.kGreen+2, ROOT.kRed-3, ROOT.kCyan+1, ROOT.kMagenta-3, ROOT.kViolet-1, ROOT.kSpring+10]
             return colorList[color % len(colorList)]
-        canvas.cd()
-        canvas.Clear()
         for number,fn in enumerate(filters):
+            canvas.cd()
+            canvas.Clear()
             histogramDict={ dataset : histogram.histograms[dataset][number] for dataset in histogram.histograms }
             MCdatasets=[x for x in histogramDict if not 'Data' in x]
             MCdatasets.sort(key=lambda x: histogramDict[x].Integral())
             ths=ROOT.THStack('fitstack','fitstack')
-            ths.SetTitle(';;Whatever')
 #            binNames=['','FFF','PFF','FPF','PPF','FFP','PFP','FPP','PPP']
             for n,dataset in enumerate(MCdatasets):
                 h=histogramDict[dataset]
@@ -69,6 +67,7 @@ def bookHistograms(plot,**kwargs):
 #                    h.GetXaxis().SetBinLabel(binNumber,binName)
                 ths.Add(h)  
             dataHist=histogramDict['Data']
+            ths.SetTitle(dataHist.GetTitle())
             dataMax=dataHist.GetMaximum()
             thsMax=ths.GetMaximum()
             if dataMax > thsMax:
@@ -84,6 +83,27 @@ def bookHistograms(plot,**kwargs):
             canvas.BuildLegend()
             tdrstyle.setTDRStyle()
             canvas.Print('%s/Summary/%s_%s.pdf' % (outputDir,histName,fn))
+            canvas.Clear()
+            top=ROOT.TPad('top','top',0.0,0.2,1.0,1.0)
+            bottom=ROOT.TPad('bottom','bottom',0.0,0.0,1.0,0.2)
+            top.Draw()
+            bottom.Draw()
+            top.cd()
+            if dataMax > thsMax:
+                dataHist.Draw('P')
+                ths.Draw('HIST SAME')
+            else:
+                ths.Draw('HIST')
+                dataHist.Draw('P SAME')
+            top.BuildLegend()
+            bottom.cd()
+            mc=ths.GetStack().Last()
+            data=dataHist.Clone()
+            data.Divide(mc)
+            data.Draw('P')
+            data.GetYaxis().SetRangeUser(0.8,1.2)
+            canvas.Print('%s/Summary/%s_%s_ratio.pdf' % (outputDir,histName,fn))
+            canvas.Clear()
     plot.addHistogram(h(lambda event:event.wm_mt,filters,'Transverse Mass','Transverse Mass',200,0,200,buildSummary=stackPlotWithData))
     plot.addHistogram(h(lambda event:event.wm_deltaPhi,filters,'MET to Muon #Delta #phi','MET to Muon #Delta #phi',200,-math.pi,math.pi,buildSummary=stackPlotWithData))
     plot.addHistogram(h(lambda event:event.z_deltaR,filters,'Muon to #gamma #DeltaR','Muon to #gamma #DeltaR',100,0,10,buildSummary=stackPlotWithData))
@@ -149,26 +169,27 @@ def myPalette(color):
     return colorList[color % len(colorList)]
 
 
-ff=filenames.getFilenamesFunction('WGFakeRate')
-outputDirectory='TreePlots/WGFakeRateNew'
+analysis='WGFakeRate'
+version='v6'
+ff=filenames.getFilenamesFunction(analysis,version)
+outputDirectory='TreePlots/%s' % analysis+version
 os.makedirs(outputDirectory)
 tfile=ROOT.TFile('%s/treePlotterOutput.root' % outputDirectory,'CREATE')
 #datasets=('WJetsToLNu','Data','T+Jets','WZ+G+Jets','T+G+Jets')
 #datasets=DatasetDict.keys()
 DatasetsSets= {
-'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data')
+'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data','QCD')
 }
-analysis='WGFakeRate'
 plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis)
 filters = ( ('NoFilter' , lambda event: True ),
             ('TransverseMass>80' , lambda event: event.wm_mt > 80),
             ('DeltaR>1' , lambda event: event.z_deltaR > 1),
             ('NotTransverseMass>80' , lambda event: not event.wm_mt > 80),
             ('NotDeltaR>1' , lambda event: not event.z_deltaR > 1),
-            ('Bjets>.4', lambda event: event.minDeltaR_passCSVv2L > .4 or event.minDeltaR_passCSVv2L < 0),
-            ('Bjets>.4&TransverseMass>80', lambda event: ( event.minDeltaR_passCSVv2L > .4 or event.minDeltaR_passCSVv2L < 0) and event.wm_mt>80),
-            ('BjetDiscriminatorDifference', lambda event: event.num_bjet_passCSVv2L != event.num_bjet_passCSVv2T),
+            ('Bjets>1', lambda event: event.minDeltaR_passCSVv2L > 1),
+            ('Bjets>1&TransverseMass>80', lambda event: ( event.minDeltaR_passCSVv2L > 1) and event.wm_mt>80),
             ('NoBjets', lambda event: event.num_bjet_passCSVv2L == 0),
+            ('NoBjets&TM>80', lambda event: event.num_bjet_passCSVv2L == 0 and event.wm_mt > 80),
           )
 plot.setFilters(filters)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)

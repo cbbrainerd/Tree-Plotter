@@ -144,8 +144,9 @@ class treePlotter:
             for subDataset in subDatasets:
                 self.subDatasetFiles[subDataset]=filenamesFunction(subDataset)
                 if not self.subDatasetFiles[subDataset]:
-                    print subDataset
-                    assert False
+                    print 'Filenames not found for dataset %s' % subDataset
+                    print filenamesFunction(subDataset)
+                    raise KeyError(subDataset)
                 numberOfEvents=0
                 xsec=getXsec(subDataset)
                 if xsec==0:

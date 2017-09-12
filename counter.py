@@ -15,7 +15,7 @@ arrayMap = {
     'F': 'f',
 }
 
-class counter:
+class counter(object):
     def __enter__(self):
         pass
     def __exit__(self):
@@ -25,6 +25,9 @@ class counter:
         self.datasets=kwargs.pop('datasets')
         self.cutFilters=kwargs.pop('cutFilters')
         self.countFilters=kwargs.pop('countFilters')
+        self.fn=kwargs.pop('filename','%s_count' % self.analysis)
+        countFilterFunctions=self.countFilters.keys()
+        self.countFilters['All']=lambda event: True
         self.inputTreeName=kwargs.pop('inputTreeName','%sTree' % self.analysis)
         self.trees={}
         self.branches={}
@@ -33,9 +36,9 @@ class counter:
         for cut in self.countFilters:
             self.countCounts[cut]={}
         self.eventCounts={}
-        self.fileOut=open('%s_count.txt' % self.analysis,'wb')
+        self.fileOut=open('%s.txt' % self.fn,'wb')
         self.filenames=filenames(self.analysis)
-        self.TFileOut=ROOT.TFile('%s_count.root' % self.analysis,'RECREATE')
+        self.TFileOut=ROOT.TFile('%s.root' % self.fn,'RECREATE')
     def addBranch(self,function,label,rootType):
         if label not in self.branches:
             if rootType[0]=='C': # special handling of string
@@ -49,7 +52,6 @@ class counter:
         self.tree.Branch(label,self.branches[label]['var'],'{0}/{1}'.format(self.branches[label]['branchName'],self.branches[label]['rootType']))
     def _initTree(self,dataset):
         self.TFileOut.cd()
-        print ROOT.gDirectory
         for cut in self.countFilters:
             for subdataset in DatasetDict[dataset]:
                 self.countCounts[cut][subdataset]=0
@@ -84,7 +86,9 @@ class counter:
                 return False
         return True
     def _evalCountFilters(self,event):
-        return { filt : cfilt(event) for filt,cfilt in self.countFilters.iteritems() }
+        retVal={ filt : cfilt(event) for filt,cfilt in self.countFilters.iteritems() }
+        retVal['All']=all(retVal.values())
+        return retVal
     def fill(self,event):
         for label in self.branches:
             self._evaluate(label,event)
@@ -117,7 +121,7 @@ class counter:
         self.tree.Write()
         for subdataset in DatasetDict[dataset]:
             self.fileOut.write('%s:' % subdataset)
-            if not self.cutCount[subdataset]:
+            if not self.cutCounts[subdataset]:
                 self.fileOut.write('No events passing selection cut.\n')
             else:
                 self.fileOut.write('\n');
@@ -129,3 +133,37 @@ class counter:
     def __del__(self):
         self.TFileOut.Close()
         self.fileOut.close()
+
+class counterFunction(counter): #Cut and count as a function
+    def __init__(self,**kwargs):
+        super(counterFunction,self).__init__(**kwargs)
+        self.functional=kwargs.pop('function') #Lambda takes event
+        self.histTemplate=kwargs.pop('histogram')
+    def analyze(self):
+        self.cutHist=self.histTemplate.Clone()
+        self.countHist={ filt : self.histTemplate.Clone() for filt in self.countFilters }
+        super(counterFunction,self).analyze()
+        canvas=ROOT.TCanvas()
+        for name,hist in self.countHist.iteritems():
+            hist.Divide(self.cutHist)
+            hist.GetYaxis().SetRangeUser(0,1)
+            hist.Draw()
+            canvas.Print('COUNT_%s_%s.pdf' % (self.analysis,name))
+    def _handleFile(self,dataset,subdataset,fn):
+        tmpTFile=ROOT.TFile.Open(fn)
+        tree=tmpTFile.Get(self.inputTreeName)
+        for event in tree:
+            self.eventCounts[dataset]+=1
+            if not (self.eventCounts[dataset] % 100000):
+                print '%d events analyzed.' % self.eventCounts[dataset] 
+            if self._evalCutFilters(event):
+                fillVal=self.functional(event)
+                self.fill(event)
+                self.cutHist.Fill(fillVal)
+                self.cutCounts[subdataset]+=1 #Do weighting later
+                for cut,retval in self._evalCountFilters(event).items():
+                    if retval:
+                        self.countCounts[cut][subdataset]+=1 
+                        self.countHist[cut].Fill(fillVal)
+        tmpTFile.Close()
+        self.TFileOut.cd()

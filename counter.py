@@ -3,6 +3,16 @@ from Datasets import DatasetDict
 from filenames import getFilenamesFunction as filenames
 from array import array
 
+try:
+    from DevTools.Plotter.xsec import getXsecRaise as getXsec
+except ImportError:
+    try:
+        from DevTools.Plotter.python.xsec import getXsecRaise as getXsec
+    except ImportError:
+        print "getXsec could not be imported."
+        print "Weighting cannot be done properly without getXsec."
+        raise
+
 typeMap = {
     'I': int,
     'l': long,
@@ -25,6 +35,9 @@ class counter(object):
         self.datasets=kwargs.pop('datasets')
         self.cutFilters=kwargs.pop('cutFilters')
         self.countFilters=kwargs.pop('countFilters')
+        self.lumi=kwargs.pop('luminosity')
+        self.info=kwargs.pop('info',None)
+        self.eventWeight=kwargs.pop('weighting') #Lambda takes event
         self.fn=kwargs.pop('filename','%s_count' % self.analysis)
         countFilterFunctions=self.countFilters.keys()
         self.countFilters['All']=lambda event: True
@@ -39,6 +52,7 @@ class counter(object):
         self.fileOut=open('%s.txt' % self.fn,'wb')
         self.filenames=filenames(self.analysis)
         self.TFileOut=ROOT.TFile('%s.root' % self.fn,'RECREATE')
+        self.addBranch(self.eventWeight,'eventWeight','F')
     def addBranch(self,function,label,rootType):
         if label not in self.branches:
             if rootType[0]=='C': # special handling of string
@@ -93,7 +107,24 @@ class counter(object):
         for label in self.branches:
             self._evaluate(label,event)
         self.tree.Fill()
-    def _handleFile(self,dataset,subdataset,fn):
+    def _genSubdatasetWeights(self):
+        self.subdatasetWeight={}
+        for dataset in self.datasets:
+            for subDataset in DatasetDict[dataset]:
+                if dataset=='Data':
+                    self.subdatasetWeight[subDataset]=1
+                else:        
+                    fns=self.filenames(subDataset)
+                    numberOfEvents=0
+                    for fn in fns:
+                        tmpTfile=ROOT.TFile(fn)
+                        if not tmpTfile:
+                            raise IOError(fn)
+                        numberOfEvents+=tmpTfile.summedWeights.GetBinContent(1)
+                        tmpTfile.Close()
+                    xsec=getXsec(subDataset)
+                    self.subdatasetWeight[subDataset]=xsec*self.lumi/float(numberOfEvents)
+    def _handleFile(self,dataset,subdataset,fn,sdw,ew):
 #        print 'Opening file %s.' % fn
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
@@ -102,11 +133,12 @@ class counter(object):
             if not (self.eventCounts[dataset] % 100000):
                 print '%d events analyzed.' % self.eventCounts[dataset] 
             if self._evalCutFilters(event):
+                weight=sdw*ew(event)
                 self.fill(event)
-                self.cutCounts[subdataset]+=1 #Do weighting later
+                self.cutCounts[subdataset]+=weight #Do weighting later
                 for cut,retval in self._evalCountFilters(event).items():
                     if retval:
-                        self.countCounts[cut][subdataset]+=1 
+                        self.countCounts[cut][subdataset]+=weight
         tmpTFile.Close()
         self.TFileOut.cd()
     def _handleDataset(self,dataset):
@@ -117,7 +149,7 @@ class counter(object):
         for subDataset in DatasetDict[dataset]:
             fns=self.filenames(subDataset)
             for fn in fns:
-                self._handleFile(dataset,subDataset,fn)
+                self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if dataset!='Data' else lambda event:1)
         self.tree.Write()
         for subdataset in DatasetDict[dataset]:
             self.fileOut.write('%s:' % subdataset)
@@ -128,6 +160,10 @@ class counter(object):
             for cut in self.countFilters:
                 self.fileOut.write('%s: %s %d/%d: %f\n' % (subdataset,cut,self.countCounts[cut][subdataset],self.cutCounts[subdataset],self.countCounts[cut][subdataset]/float(self.cutCounts[subdataset]) if self.cutCounts[subdataset]>0 else -1))
     def analyze(self):
+        if self.info:
+            for line in self.info:
+                self.fileOut.write(line)
+        self._genSubdatasetWeights()
         for dataset in self.datasets:
             self._handleDataset(dataset)
     def __del__(self):
@@ -149,7 +185,7 @@ class counterFunction(counter): #Cut and count as a function
             hist.GetYaxis().SetRangeUser(0,1)
             hist.Draw()
             canvas.Print('COUNT_%s_%s.pdf' % (self.analysis,name))
-    def _handleFile(self,dataset,subdataset,fn):
+    def _handleFile(self,dataset,subdataset,fn,sdw,ew):
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
         for event in tree:
@@ -157,13 +193,14 @@ class counterFunction(counter): #Cut and count as a function
             if not (self.eventCounts[dataset] % 100000):
                 print '%d events analyzed.' % self.eventCounts[dataset] 
             if self._evalCutFilters(event):
+                weight=sdw*ew(event)
                 fillVal=self.functional(event)
                 self.fill(event)
-                self.cutHist.Fill(fillVal)
-                self.cutCounts[subdataset]+=1 #Do weighting later
+                self.cutHist.Fill(fillVal,weight)
+                self.cutCounts[subdataset]+=weight #Do weighting later
                 for cut,retval in self._evalCountFilters(event).items():
                     if retval:
-                        self.countCounts[cut][subdataset]+=1 
-                        self.countHist[cut].Fill(fillVal)
+                        self.countCounts[cut][subdataset]+=weight
+                        self.countHist[cut].Fill(fillVal,weight)
         tmpTFile.Close()
         self.TFileOut.cd()

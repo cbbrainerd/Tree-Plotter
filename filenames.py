@@ -16,6 +16,11 @@ def _wgFakes(version='v6'):
         return glob.glob('WGFakeRate%s/*%s*/results/*.root' % (version,dataset))
     return _wgFakesH
 
+def _ThreePhoton(version='v3'):
+    def _ThreePhotonH(dataset):
+        return glob.glob('ThreePhoton%s/*%s*/results/*.root' % (version,dataset))
+    return _ThreePhotonH
+
 def getFilenamesFunction(identifier=None,version='v6'):
     if not identifier:
         if hadd:
@@ -24,7 +29,7 @@ def getFilenamesFunction(identifier=None,version='v6'):
             return _notHadd
     else:
         try:
-            return { 'hadd' : _hadd , 'notHadd' : _notHadd , 'Run2' : _run2 , 'WGFakeRate' : _wgFakes, }[identifier](version)
+            return { 'hadd' : _hadd , 'notHadd' : _notHadd , 'Run2' : _run2 , 'WGFakeRate' : _wgFakes, 'ThreePhoton' : _ThreePhoton }[identifier](version)
         except KeyError:
             raise
 

@@ -176,11 +176,20 @@ class counter(object):
                 self.datasetCutCounts[dataset]+=self.cutCounts[subDataset]
                 for cut in self.countFilters:
                     self.datasetCountCounts[cut][dataset]+=self.countCounts[cut][subDataset]
-        self.fileOut.write('Datasets:\n')
+        self.datasetCutCounts['MC']=0
+        for cut in self.countFilters:
+            self.datasetCountCounts[cut]['MC']=0
         for dataset in self.datasets:
+            if dataset=='Data':
+                continue
+            self.datasetCutCounts['MC']+=self.datasetCutCounts[dataset]
+            for cut in self.countFilters:
+                self.datasetCountCounts[cut]['MC']+=self.datasetCountCounts[cut][dataset]
+        self.fileOut.write('Datasets:\n')
+        for dataset in self.datasetCutCounts.iterkeys():
             self.fileOut.write('%s:\n' % dataset)
             for cut in self.countFilters:
-                self.fileOut.write('%s: %s %f/%f: %f\n') % (dataset,cut,float(self.datasetCountCounts[cut][dataset]),float(self.datasetCutCounts[dataset]),self.datasetCountCounts[cut][dataset]/float(self.datasetCutCounts[dataset]))
+                self.fileOut.write('%s: %s %f/%f: %f\n' % (dataset,cut,float(self.datasetCountCounts[cut][dataset]),float(self.datasetCutCounts[dataset]),self.datasetCountCounts[cut][dataset]/float(self.datasetCutCounts[dataset])))
     def __del__(self):
         self.TFileOut.Close()
         self.fileOut.close()
@@ -192,14 +201,21 @@ class counterFunction(counter): #Cut and count as a function
         self.histTemplate=kwargs.pop('histogram')
     def analyze(self):
         self.cutHist=self.histTemplate.Clone()
+        self.cutHist.SetDirectory(self.TFileOut)
         self.countHist={ filt : self.histTemplate.Clone() for filt in self.countFilters }
+        [x.SetDirectory(self.TFileOut) for x in self.countHist.values()]
         super(counterFunction,self).analyze()
         canvas=ROOT.TCanvas()
         for name,hist in self.countHist.iteritems():
+            hist.SetStats(0)
             hist.Divide(self.cutHist)
             hist.GetYaxis().SetRangeUser(0,1)
             hist.Draw()
             canvas.Print('COUNT_%s_%s.pdf' % (self.analysis,name))
+            for y in xrange(1,10):
+                hist.GetYaxis().SetRangeUser(0,y/float(10))
+                hist.Draw()
+                canvas.Print('COUNT_%s_%s_y%d.pdf' % (self.analysis,name,y))
     def _handleFile(self,dataset,subdataset,fn,sdw,ew):
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)

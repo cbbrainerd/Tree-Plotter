@@ -104,9 +104,11 @@ def bookHistograms(plot,**kwargs):
             data.GetYaxis().SetRangeUser(0.8,1.2)
             canvas.Print('%s/Summary/%s_%s_ratio.pdf' % (outputDir,histName,fn))
             canvas.Clear()
-    plot.addHistogram(h(lambda event:event.wm_mt,filters,'Transverse Mass','Transverse Mass',200,0,200,buildSummary=stackPlotWithData))
-    plot.addHistogram(h(lambda event:event.wm_deltaPhi,filters,'MET to Muon #Delta #phi','MET to Muon #Delta #phi',200,-math.pi,math.pi,buildSummary=stackPlotWithData))
-    plot.addHistogram(h(lambda event:event.z_deltaR,filters,'Muon to #gamma #DeltaR','Muon to #gamma #DeltaR',100,0,10,buildSummary=stackPlotWithData))
+    plot.addHistogram(h(lambda event:event.ggg_mass,None,'3#gamma Invariant Mass','3#gamma Invariant Mass',50,0,1000))
+    plot.addHistogram(h(lambda event:event.gg12_mass,None,'Leading 2#gamma Invariant Mass','Leading 2#gamma Invariant Mass',50,0,1000))
+#    plot.addHistogram(h(lambda event:event.wm_mt,filters,'Transverse Mass','Transverse Mass',200,0,200,buildSummary=stackPlotWithData))
+#    plot.addHistogram(h(lambda event:event.wm_deltaPhi,filters,'MET to Muon #Delta #phi','MET to Muon #Delta #phi',200,-math.pi,math.pi,buildSummary=stackPlotWithData))
+#    plot.addHistogram(h(lambda event:event.z_deltaR,filters,'Muon to #gamma #DeltaR','Muon to #gamma #DeltaR',100,0,10,buildSummary=stackPlotWithData))
     #plot.addHistogram(h(MVAPass,filters,'Fit','Fit',8,-.5,7.5,buildHistograms=lambda *args: None,buildSummary=stackPlotWithData))
 #    def TwoDColorPlot(histogram):
     #plot.addHistogram(h(lambda event: (deltaPhi(event.g1_phi,event.met_phi),event.met_pt),None,'Leading photon: MET p_T vs #Delta#phi','Leading photon: MET p_T vs #Delta#phi;MET;Leading photon p_T',100,0,math.pi,1000,0,1000,histType=ROOT.TH2F))
@@ -169,8 +171,8 @@ def myPalette(color):
     return colorList[color % len(colorList)]
 
 
-analysis='WGFakeRate'
-version='v6'
+analysis='ThreePhoton'
+version='v3'
 ff=filenames.getFilenamesFunction(analysis,version)
 outputDirectory='TreePlots/%s' % analysis+version
 os.makedirs(outputDirectory)
@@ -179,10 +181,12 @@ tfile=ROOT.TFile('%s/treePlotterOutput.root' % outputDirectory,'CREATE')
 #datasets=DatasetDict.keys()
 DatasetsSets= {
 'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data','QCD') ,
-'ClosureTest' : ('QCD','QCD_EMEnriched'),
+'ThreePhoton' : ('QCD','QCD_50plus','QCD_EMEnriched'),
 }
-plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis)
-filters = ( ('NoFilter' , lambda event: True ),
+datasetWeights={'QCD' : .04*.04 , 'QCD_50plus' : 04*.04 }
+#plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis)
+plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis,additionalDatasetWeights=datasetWeights)
+WGFakeRateFilters = ( ('NoFilter' , lambda event: True ),
             ('TransverseMass>80' , lambda event: event.wm_mt > 80),
             ('TransverseMass>80&DeltaR>1.2' , lambda event: event.wm_mt > 80 and event.z_deltaR > 1.2),
             ('DeltaR>1.2' , lambda event: event.z_deltaR > 1.2),
@@ -193,7 +197,10 @@ filters = ( ('NoFilter' , lambda event: True ),
             ('NoBjets', lambda event: event.num_bjet_passCSVv2L == 0),
             ('NoBjets&TM>80&DeltaR>1.2', lambda event: event.num_bjet_passCSVv2L == 0 and event.wm_mt > 80 and event.z_deltaR > 1.2),
           )
-plot.setFilters(filters)
+ClosureTestFilters = ( ('NoFilter', lambda event: True),
+                ('AllPhotonIds', lambda event: event.g1_passId and event.g1_passPreselection and event.g2_passId and event.g2_passPreselection)
+)
+plot.setFilters(ClosureTestFilters)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
 bookHistograms(plot)
 plot.process()

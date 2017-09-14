@@ -44,7 +44,8 @@ class histogram:
                 else:
                     tdrstyle.setTDRStyle()
                 canvas.Print('%s/%s.pdf' % (outputDir,name))
-            self.buildSummary(self,outputDirectory=outputDir,canvas=canvas)
+            if self.buildSummary:
+                self.buildSummary(self,outputDirectory=outputDir,canvas=canvas)
     def __init__(self,fillFunction=None,_=None,*args,**kwargs):
         self.fillFunction=fillFunction
         self.style=None
@@ -125,6 +126,7 @@ class treePlotter:
         self.treeName=kwargs.pop('treeName','ThreePhotonTree')
         self.DatasetDict=kwargs.pop('DatasetDict',DatasetDict)
         self.outputDirectory=kwargs.pop('outputDirectory','TreePlots')
+        self.datasetWeights=kwargs.pop('additionalDatasetWeights',{})
         self.currentDataset=None
         try:
             os.makedirs('%s/Summary' % self.outputDirectory)
@@ -167,6 +169,8 @@ class treePlotter:
                     self.subDatasetWeights[subDataset]=xsec*self.lumi/float(numberOfEvents)
                 else:
                     self.subDatasetWeights[subDataset]=1
+                if dataset in self.datasetWeights:
+                    self.subDatasetWeights[subDataset]*=self.datasetWeights[dataset]
         with open('subDatasetWeights.log','wb') as f:
             f.write('Weights with luminosity: %f\n' % self.lumi)
             for x,y in self.subDatasetWeights.iteritems():

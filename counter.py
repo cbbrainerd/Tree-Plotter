@@ -46,8 +46,11 @@ class counter(object):
         self.branches={}
         self.cutCounts={}
         self.countCounts={}
+        self.datasetCutCounts={}
+        self.datasetCountCounts={}
         for cut in self.countFilters:
             self.countCounts[cut]={}
+            self.datasetCountCounts[cut]={}
         self.eventCounts={}
         self.fileOut=open('%s.txt' % self.fn,'wb')
         self.filenames=filenames(self.analysis)
@@ -158,7 +161,7 @@ class counter(object):
             else:
                 self.fileOut.write('\n');
             for cut in self.countFilters:
-                self.fileOut.write('%s: %s %d/%d: %f\n' % (subdataset,cut,self.countCounts[cut][subdataset],self.cutCounts[subdataset],self.countCounts[cut][subdataset]/float(self.cutCounts[subdataset]) if self.cutCounts[subdataset]>0 else -1))
+                self.fileOut.write('%s: %s %f/%f: %f\n' % (subdataset,cut,float(self.countCounts[cut][subdataset]),float(self.cutCounts[subdataset]),self.countCounts[cut][subdataset]/float(self.cutCounts[subdataset]) if self.cutCounts[subdataset]>0 else -1))
     def analyze(self):
         if self.info:
             for line in self.info:
@@ -166,6 +169,18 @@ class counter(object):
         self._genSubdatasetWeights()
         for dataset in self.datasets:
             self._handleDataset(dataset)
+            self.datasetCutCounts[dataset]=0
+            for cut in self.countFilters:
+                self.datasetCountCounts[cut][dataset]=0
+            for subDataset in DatasetDict[dataset]:
+                self.datasetCutCounts[dataset]+=self.cutCounts[subDataset]
+                for cut in self.countFilters:
+                    self.datasetCountCounts[cut][dataset]+=self.countCounts[cut][subDataset]
+        self.fileOut.write('Datasets:\n')
+        for dataset in self.datasets:
+            self.fileOut.write('%s:\n' % dataset)
+            for cut in self.countFilters:
+                self.fileOut.write('%s: %s %f/%f: %f\n') % (dataset,cut,float(self.datasetCountCounts[cut][dataset]),float(self.datasetCutCounts[dataset]),self.datasetCountCounts[cut][dataset]/float(self.datasetCutCounts[dataset]))
     def __del__(self):
         self.TFileOut.Close()
         self.fileOut.close()

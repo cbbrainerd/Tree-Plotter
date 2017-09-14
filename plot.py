@@ -178,18 +178,20 @@ tfile=ROOT.TFile('%s/treePlotterOutput.root' % outputDirectory,'CREATE')
 #datasets=('WJetsToLNu','Data','T+Jets','WZ+G+Jets','T+G+Jets')
 #datasets=DatasetDict.keys()
 DatasetsSets= {
-'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data','QCD')
+'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data','QCD') ,
+'ClosureTest' : ('QCD','QCD_EMEnriched'),
 }
 plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis)
 filters = ( ('NoFilter' , lambda event: True ),
             ('TransverseMass>80' , lambda event: event.wm_mt > 80),
-            ('DeltaR>1' , lambda event: event.z_deltaR > 1),
+            ('TransverseMass>80&DeltaR>1.2' , lambda event: event.wm_mt > 80 and event.z_deltaR > 1.2),
+            ('DeltaR>1.2' , lambda event: event.z_deltaR > 1.2),
             ('NotTransverseMass>80' , lambda event: not event.wm_mt > 80),
-            ('NotDeltaR>1' , lambda event: not event.z_deltaR > 1),
+            ('NotDeltaR>1.2' , lambda event: not event.z_deltaR > 1.2),
             ('Bjets>1', lambda event: event.minDeltaR_passCSVv2L > 1),
-            ('Bjets>1&TransverseMass>80', lambda event: ( event.minDeltaR_passCSVv2L > 1) and event.wm_mt>80),
+            ('Bjets>1&TransverseMass>80&DeltaR>1.2', lambda event: ( event.minDeltaR_passCSVv2L > 1) and event.wm_mt>80 and event.z_deltaR > 1),
             ('NoBjets', lambda event: event.num_bjet_passCSVv2L == 0),
-            ('NoBjets&TM>80', lambda event: event.num_bjet_passCSVv2L == 0 and event.wm_mt > 80),
+            ('NoBjets&TM>80&DeltaR>1.2', lambda event: event.num_bjet_passCSVv2L == 0 and event.wm_mt > 80 and event.z_deltaR > 1.2),
           )
 plot.setFilters(filters)
 plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)

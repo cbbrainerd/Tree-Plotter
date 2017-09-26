@@ -90,11 +90,10 @@ class counter(object):
         elif self.branches[label]['rootType']=='C': # special handling of string
             strSize = self.branches[label]['size']
             funcVal = pyType(self.branches[label]['function'](event))
-            #if len(funcVal)==strSize-1:
             if len(funcVal)<strSize:
                 self.branches[label]['var'][:strSize] = funcVal
             else:
-                logging.error('Size mismatch function with label {0}.'.format(label))
+                raise ValueError('Size mismatch function with label {0}.'.format(label))
         else:
             self.branches[label]['var'][0] = pyType(self.branches[label]['function'](event))
     def _evalCutFilters(self,event):
@@ -197,25 +196,27 @@ class counter(object):
 class counterFunction(counter): #Cut and count as a function
     def __init__(self,**kwargs):
         super(counterFunction,self).__init__(**kwargs)
-        self.functional=kwargs.pop('function') #Lambda takes event
-        self.histTemplate=kwargs.pop('histogram')
+        self.functionals=kwargs.pop('function') #Lambda takes event
+        self.histTemplates=kwargs.pop('histogram')
     def analyze(self):
-        self.cutHist=self.histTemplate.Clone()
-        self.cutHist.SetDirectory(self.TFileOut)
-        self.countHist={ filt : self.histTemplate.Clone() for filt in self.countFilters }
-        [x.SetDirectory(self.TFileOut) for x in self.countHist.values()]
+        self.cutHists=[ht.Clone() for ht in self.histTemplates]
+        [ht.SetDirectory(self.TFileOut) for ht in self.cutHists]
+        self.countHists=[{ filt : ht.Clone() for filt in self.countFilters } for ht in self.histTemplates]
+ #       [x.SetDirectory(self.TFileOut) for x in [y.values() for y in self.countHists]]
         super(counterFunction,self).analyze()
         canvas=ROOT.TCanvas()
-        for name,hist in self.countHist.iteritems():
-            hist.SetStats(0)
-            hist.Divide(self.cutHist)
-            hist.GetYaxis().SetRangeUser(0,1)
-            hist.Draw()
-            canvas.Print('COUNT_%s_%s.pdf' % (self.analysis,name))
-            for y in xrange(1,10):
-                hist.GetYaxis().SetRangeUser(0,y/float(10))
+        for hl in self.countHists:
+            for name,hist in hl.iteritems():
+                hname=hist.GetTitle()
+                hist.SetStats(0)
+                hist.Divide(self.cutHist)
+                hist.GetYaxis().SetRangeUser(0,1)
                 hist.Draw()
-                canvas.Print('COUNT_%s_%s_y%d.pdf' % (self.analysis,name,y))
+                canvas.Print('COUNT_%s_%s_%s.pdf' % (self.analysis,hname,name))
+                for y in xrange(1,10):
+                    hist.GetYaxis().SetRangeUser(0,y/float(10))
+                    hist.Draw()
+                    canvas.Print('COUNT_%s_%s_%s_y%d.pdf' % (self.analysis,hname,name,y))
     def _handleFile(self,dataset,subdataset,fn,sdw,ew):
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
@@ -225,13 +226,23 @@ class counterFunction(counter): #Cut and count as a function
                 print '%d events analyzed.' % self.eventCounts[dataset] 
             if self._evalCutFilters(event):
                 weight=sdw*ew(event)
-                fillVal=self.functional(event)
+                fillVals=[list(fun(event)) for fun in self.functionals]
+                [fillVal.append(weight) for fillVal in fillVals]
                 self.fill(event)
-                self.cutHist.Fill(fillVal,weight)
+                [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.cutHists,fillVals)]
                 self.cutCounts[subdataset]+=weight #Do weighting later
                 for cut,retval in self._evalCountFilters(event).items():
                     if retval:
                         self.countCounts[cut][subdataset]+=weight
-                        self.countHist[cut].Fill(fillVal,weight)
+                        [ch[cut].Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.countHists,fillVals)]
         tmpTFile.Close()
         self.TFileOut.cd()
+
+#class combinatorics(counterFunction):
+#    def __init__(self,**kwargs):
+#        super(combinatorics,self).__init__(**kwargs)
+#        self.countFilters.remove('All')
+#        self.originalCountFilters=dict(self.countFilters)
+#        for cut in self.countFilters:
+#            for x in ['e','t','f']:
+                

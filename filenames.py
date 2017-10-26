@@ -1,5 +1,8 @@
 import glob
 
+g_dataset=None
+g_version=None
+
 def _hadd(dataset):
     return 'ROOT_Files/ThreePhoton_%s.root' % dataset
 
@@ -22,6 +25,10 @@ def _ThreePhoton(version='v3'):
     return _ThreePhotonH
 
 def getFilenamesFunction(identifier=None,version='v6'):
+    global g_dataset
+    global g_version
+    g_dataset=identifier
+    g_version=version
     if not identifier:
         if hadd:
             return _hadd

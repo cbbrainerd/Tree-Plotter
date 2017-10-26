@@ -1,6 +1,7 @@
 import ROOT
 from Datasets import DatasetDict
 from filenames import getFilenamesFunction as filenames
+import filenames as fnm
 from array import array
 import itertools
 import datetime
@@ -57,8 +58,9 @@ class counter(object):
             self.countCounts[cut]={}
             self.datasetCountCounts[cut]={}
         self.eventCounts={}
-        self.fileOut=open('%s/%s.txt' % (self.directory,self.fn),'wb')
+        self.fileOut=open('%s/%s.txt' % (self.directory,self.fn),'w',1)
         self.filenames=filenames(self.analysis)
+        with open('%s/FILES' % self.directory,'w') as f: f.write('%s_%s' % (fnm.g_dataset,fnm.g_version))
         self.TFileOut=ROOT.TFile('%s/%s.root' % (self.directory,self.fn),'RECREATE')
         self.addBranch(self.eventWeight,'eventWeight','F')
     def addBranch(self,function,label,rootType):

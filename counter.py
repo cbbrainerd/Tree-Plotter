@@ -82,6 +82,7 @@ class counter(object):
         for subdataset in DatasetDict[dataset]:
             self.cutCounts[subdataset]=0
         self.tree=ROOT.TTree(dataset,dataset)
+        print "Tree %s initialized..." % self.tree.GetName()
         self.trees[dataset]=self.tree
         for label in self.branches:
             self._initTreeBranch(label)
@@ -159,6 +160,7 @@ class counter(object):
             fns=self.filenames(subDataset)
             for fn in fns:
                 self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if dataset!='Data' else lambda event:1)
+        print "Writing tree %s..." % self.tree.GetName()
         self.tree.Write()
         for subdataset in DatasetDict[dataset]:
             self.fileOut.write('%s:' % subdataset)
@@ -206,34 +208,44 @@ class counterFunction(counter): #Cut and count as a function
         self.functionals=kwargs.pop('function') #Lambda takes event
         self.histTemplates=kwargs.pop('histogram')
     def analyze(self):
-        self.cutHists=[ht.Clone() for ht in self.histTemplates]
-        [ht.SetDirectory(self.TFileOut) for ht in self.cutHists]
-        self.countHists=[{ filt : ht.Clone() for filt in self.countFilters } for ht in self.histTemplates]
-        for hist in self.cutHists:
-            hist.SetName("%s_cutHist" % hist.GetName())
-        for hdict in self.countHists:
-            for filt,hist in hdict.items():
-                hist.SetDirectory(self.TFileOut)
-                hist.SetName('%s_%s' % (hist.GetName(),filt))
+        self.cutHists={dataset:[ht.Clone() for ht in self.histTemplates] for dataset in self.datasets}
+        for dataset in self.datasets:
+            [ht.SetDirectory(self.TFileOut) for ht in self.cutHists[dataset]]
+        self.countHists={dataset:[{ filt : ht.Clone() for filt in self.countFilters } for ht in self.histTemplates] for dataset in self.datasets}
+        for dataset,datasetHist in self.cutHists.iteritems():
+            for hist in datasetHist:
+                hist.SetName("%s_%s_cutHist" % (hist.GetName(),dataset))
+        for dataset,datasetHist in self.countHists.iteritems():
+            for hdict in datasetHist:
+                for filt,hist in hdict.items():
+                    hist.SetDirectory(self.TFileOut)
+                    hist.SetName('%s_%s_%s' % (hist.GetName(),dataset,filt))
         super(counterFunction,self).analyze()
         canvas=ROOT.TCanvas()
-        for num,hl in enumerate(self.countHists):
-            for name,hist in hl.iteritems():
-                hname=hist.GetName()+hist.GetTitle()
-                hist.SetStats(0)
-                hist.Divide(self.cutHists[num])
-                hist.GetYaxis().SetRangeUser(0,1)
-                if isinstance(hist,ROOT.TH2):
-                    hist.Draw('col')
-                else:
-                    hist.Draw()
+        for datasetHist in self.cutHists.itervalues():
+            for hist in datasetHist:
                 hist.Write()
-                canvas.Print('%s/COUNT_%s_%s_%s.pdf' % (self.directory,self.analysis,hname,name))
-                if not isinstance(hist,ROOT.TH2):
-                    for y in xrange(1,10):
-                        hist.GetYaxis().SetRangeUser(0,y/float(10))
+        for dataset,datasetHist in self.countHists.iteritems():
+            for num,hl in enumerate(self.countHists):
+                for name,hist in hl.iteritems():
+                    hname=hist.GetName()+hist.GetTitle()
+                    hist.SetStats(0)
+                    fullHist=hist.Clone()
+                    fullHist.SetName('%s_Full' % fullHist.GetName())
+                    fullHist.Write()
+                    hist.Divide(self.cutHists[dataset][num])
+                    hist.GetYaxis().SetRangeUser(0,1)
+                    if isinstance(hist,ROOT.TH2):
+                        hist.Draw('col')
+                    else:
                         hist.Draw()
-                        canvas.Print('%s/COUNT_%s_%s_%s_y%d.pdf' % (self.directory,self.analysis,hname,name,y))
+                    hist.Write()
+                    canvas.Print('%s/COUNT_%s_%s_%s_%s.pdf' % (self.directory,self.analysis,dataset,hname,name))
+                    if not isinstance(hist,ROOT.TH2):
+                        for y in xrange(1,10):
+                            hist.GetYaxis().SetRangeUser(0,y/float(10))
+                            hist.Draw()
+                            canvas.Print('%s/COUNT_%s_%s_%s_%s_y%d.pdf' % (self.directory,self.analysis,dataset,hname,name,y))
     def _handleFile(self,dataset,subdataset,fn,sdw,ew):
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
@@ -246,12 +258,12 @@ class counterFunction(counter): #Cut and count as a function
                 fillVals=[list(fun(event)) for fun in self.functionals]
                 [fillVal.append(weight) for fillVal in fillVals]
                 self.fill(event)
-                [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.cutHists,fillVals)]
+                [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.cutHists[dataset],fillVals)]
                 self.cutCounts[subdataset]+=weight #Do weighting later
                 for cut,retval in self._evalCountFilters(event).items():
                     if retval:
                         self.countCounts[cut][subdataset]+=weight
-                        [ch[cut].Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.countHists,fillVals)]
+                        [ch[cut].Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.countHists[dataset],fillVals)]
         tmpTFile.Close()
         self.TFileOut.cd()
 

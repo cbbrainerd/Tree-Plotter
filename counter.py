@@ -161,7 +161,7 @@ class counter(object):
             for fn in fns:
                 self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if dataset!='Data' else lambda event:1)
         print "Writing tree %s..." % self.tree.GetName()
-        self.tree.Write()
+        self.tree.Write(str(),ROOT.TObject.kOverwrite)
         for subdataset in DatasetDict[dataset]:
             self.fileOut.write('%s:' % subdataset)
             if not self.cutCounts[subdataset]:
@@ -220,13 +220,15 @@ class counterFunction(counter): #Cut and count as a function
                 for filt,hist in hdict.items():
                     hist.SetDirectory(self.TFileOut)
                     hist.SetName('%s_%s_%s' % (hist.GetName(),dataset,filt))
-        super(counterFunction,self).analyze()
+        try:
+            super(counterFunction,self).analyze()
+        except KeyboardInterrupt: pass
         canvas=ROOT.TCanvas()
         for datasetHist in self.cutHists.itervalues():
             for hist in datasetHist:
                 hist.Write()
         for dataset,datasetHist in self.countHists.iteritems():
-            for num,hl in enumerate(self.countHists):
+            for num,hl in enumerate(datasetHist):
                 for name,hist in hl.iteritems():
                     hname=hist.GetName()+hist.GetTitle()
                     hist.SetStats(0)
@@ -234,10 +236,10 @@ class counterFunction(counter): #Cut and count as a function
                     fullHist.SetName('%s_Full' % fullHist.GetName())
                     fullHist.Write()
                     hist.Divide(self.cutHists[dataset][num])
-                    hist.GetYaxis().SetRangeUser(0,1)
                     if isinstance(hist,ROOT.TH2):
-                        hist.Draw('col')
+                        hist.Draw('colz')
                     else:
+                        hist.GetYaxis().SetRangeUser(0,1)
                         hist.Draw()
                     hist.Write()
                     canvas.Print('%s/COUNT_%s_%s_%s_%s.pdf' % (self.directory,self.analysis,dataset,hname,name))

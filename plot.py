@@ -183,8 +183,8 @@ DatasetsSets= {
 'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data','QCD') ,
 'ThreePhoton' : ('QCD','QCD_50plus','QCD_EMEnriched'),
 }
-datasetWeights={'QCD' : .04*.04 , 'QCD_50plus' : 04*.04 ,  }
-}
+#datasetWeights={'QCD' : .04*.04 , 'QCD_50plus' : 04*.04 ,  } Do fake rate properly
+#}
 #plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis)
 plot=treePlotter(tfile,DatasetsSets[analysis],35867.060,ff,outputDirectory=outputDirectory,DatasetDict=DatasetDict,treeName='%sTree'%analysis,additionalDatasetWeights=datasetWeights)
 WGFakeRateFilters = ( ('NoFilter' , lambda event: True ),

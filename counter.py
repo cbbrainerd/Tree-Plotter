@@ -40,6 +40,7 @@ class counter(object):
         self.cutFilters=kwargs.pop('cutFilters')
         self.countFilters=kwargs.pop('countFilters')
         self.directory=kwargs.pop('outputDirectory','COUNT_Output/%s' % datetime.datetime.now().isoformat())
+        self.extraFilters=kwargs.pop('extraFilters',{})
         os.makedirs(self.directory)
         self.lumi=kwargs.pop('luminosity')
         self.info=kwargs.pop('info',None)
@@ -133,7 +134,11 @@ class counter(object):
                         numberOfEvents+=tmpTfile.summedWeights.GetBinContent(1)
                         tmpTfile.Close()
                     xsec=getXsec(subDataset)
-                    self.subdatasetWeight[subDataset]=xsec*self.lumi/float(numberOfEvents)
+                    try:
+                        self.subdatasetWeight[subDataset]=xsec*self.lumi/float(numberOfEvents)
+                    except ZeroDivisionError:
+                        print subDataset
+                        raise
     def _handleFile(self,dataset,subdataset,fn,sdw,ew):
 #        print 'Opening file %s.' % fn
         tmpTFile=ROOT.TFile.Open(fn)
@@ -160,6 +165,10 @@ class counter(object):
             fns=self.filenames(subDataset)
             for fn in fns:
                 self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if dataset!='Data' else lambda event:1)
+                if self.eventCounts[dataset] > 10000: #DEBUG
+                    break #DEBUG
+            if self.eventCounts[dataset] > 10000: #DEBUG
+                break # DEBUG
         print "Writing tree %s..." % self.tree.GetName()
         self.tree.Write(str(),ROOT.TObject.kOverwrite)
         for subdataset in DatasetDict[dataset]:
@@ -209,12 +218,21 @@ class counterFunction(counter): #Cut and count as a function
         self.histTemplates=kwargs.pop('histogram')
     def analyze(self):
         self.cutHists={dataset:[ht.Clone() for ht in self.histTemplates] for dataset in self.datasets}
+        self.extraHists={}
+        for extraFilter in self.extraFilters:
+            self.extraHists[extraFilter]={dataset:[ht.Clone() for ht in self.histTemplates] for dataset in self.datasets}
         for dataset in self.datasets:
             [ht.SetDirectory(self.TFileOut) for ht in self.cutHists[dataset]]
+            for extraHist in self.extraHists.itervalues():
+                [ht.SetDirectory(self.TFileOut) for ht in extraHist[dataset]]
         self.countHists={dataset:[{ filt : ht.Clone() for filt in self.countFilters } for ht in self.histTemplates] for dataset in self.datasets}
         for dataset,datasetHist in self.cutHists.iteritems():
             for hist in datasetHist:
                 hist.SetName("%s_%s_cutHist" % (hist.GetName(),dataset))
+        for extraFilter in self.extraFilters:
+            for dataset,datasetHist in self.extraHists[extraFilter].iteritems():
+                for hist in datasetHist:
+                    hist.SetName("%s_%s_ExtraFilter_%s" % (hist.GetName(),dataset,extraFilter))
         for dataset,datasetHist in self.countHists.iteritems():
             for hdict in datasetHist:
                 for filt,hist in hdict.items():
@@ -222,7 +240,7 @@ class counterFunction(counter): #Cut and count as a function
                     hist.SetName('%s_%s_%s' % (hist.GetName(),dataset,filt))
         try:
             super(counterFunction,self).analyze()
-        except KeyboardInterrupt: pass
+        except KeyboardInterrupt: raise
         canvas=ROOT.TCanvas()
         for datasetHist in self.cutHists.itervalues():
             for hist in datasetHist:
@@ -233,21 +251,27 @@ class counterFunction(counter): #Cut and count as a function
                     hname=hist.GetName()+hist.GetTitle()
                     hist.SetStats(0)
                     fullHist=hist.Clone()
+                    extraHists={extraFilter : hist.Clone() for extraFilter in self.extraFilters}
+                    [extraHists[extraFilter].SetName('%s_ExtraFilter_%s'%(hist.GetName(),extraFilter)) for extraFilter in self.extraFilters]
                     fullHist.SetName('%s_Full' % fullHist.GetName())
                     fullHist.Write()
                     hist.Divide(self.cutHists[dataset][num])
-                    if isinstance(hist,ROOT.TH2):
-                        hist.Draw('colz')
-                    else:
-                        hist.GetYaxis().SetRangeUser(0,1)
-                        hist.Draw()
-                    hist.Write()
-                    canvas.Print('%s/COUNT_%s_%s_%s_%s.pdf' % (self.directory,self.analysis,dataset,hname,name))
-                    if not isinstance(hist,ROOT.TH2):
-                        for y in xrange(1,10):
-                            hist.GetYaxis().SetRangeUser(0,y/float(10))
-                            hist.Draw()
-                            canvas.Print('%s/COUNT_%s_%s_%s_%s_y%d.pdf' % (self.directory,self.analysis,dataset,hname,name,y))
+                    for extraFilter in self.extraFilters:
+                        extraHists[extraFilter].Divide(self.extraHists[extraFilter][dataset][num])
+                    for histogram in itertools.chain((hist,),extraHists.itervalues()):
+                        print type(histogram)
+                        if isinstance(histogram,ROOT.TH2):
+                            histogram.Draw('colz')
+                        else:
+                            histogram.GetYaxis().SetRangeUser(0,1)
+                            histogram.Draw()
+                        histogram.Write()
+                        canvas.Print('%s/COUNT_%s_%s.pdf' % (self.directory,self.analysis,histogram.GetName()))
+#                    if not isinstance(hist,ROOT.TH2):
+#                        for y in xrange(1,10):
+#                            hist.GetYaxis().SetRangeUser(0,y/float(10))
+#                            hist.Draw()
+#                            canvas.Print('%s/COUNT_%s_%s_%s_%s_y%d.pdf' % (self.directory,self.analysis,dataset,hname,name,y))
     def _handleFile(self,dataset,subdataset,fn,sdw,ew):
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
@@ -261,6 +285,8 @@ class counterFunction(counter): #Cut and count as a function
                 [fillVal.append(weight) for fillVal in fillVals]
                 self.fill(event)
                 [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.cutHists[dataset],fillVals)]
+                for extraFilter in self.extraFilters:
+                    [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.extraHists[extraFilter][dataset],fillVals)]
                 self.cutCounts[subdataset]+=weight #Do weighting later
                 for cut,retval in self._evalCountFilters(event).items():
                     if retval:

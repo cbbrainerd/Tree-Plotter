@@ -12,19 +12,19 @@ def _notHadd(dataset):
 def _run2(dataset):
     return glob.glob('Run2_FlatQCD_NoPreselection/*%s*/results/*.root' % dataset)
 
-def _wgFakes(version='v6'):
-    if version!='v6':
+def _wgFakes(version='v9'):
+    if version!='v9':
         raise ValueError(version)
     def _wgFakesH(dataset):  
         return glob.glob('WGFakeRate%s/*%s*/results/*.root' % (version,dataset))
     return _wgFakesH
 
-def _ThreePhoton(version='v3'):
+def _ThreePhoton(version='v9'):
     def _ThreePhotonH(dataset):
         return glob.glob('ThreePhoton%s/*%s*/results/*.root' % (version,dataset))
     return _ThreePhotonH
 
-def getFilenamesFunction(identifier=None,version='v6'):
+def getFilenamesFunction(identifier=None,version='v9'):
     global g_dataset
     global g_version
     g_dataset=identifier

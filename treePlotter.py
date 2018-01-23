@@ -225,7 +225,7 @@ class treePlotter:
         assert(self.weighted) #Always want weighting, really
         fileWeight=self.subDatasetWeights[subDataset]
         for event in tree:
-            eventWeight=self.weightingFunction(event) if dataset!='Data' else 1
+            eventWeight=self.weightingFunction(event,dataset) if dataset!='Data' else 1
             eventWeight*=fileWeight
             filters=[x(event) for x in self.filters.itervalues()]
             self.eventCount+=1

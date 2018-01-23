@@ -172,7 +172,7 @@ def myPalette(color):
 
 
 analysis='ThreePhoton'
-version='v3'
+version='v9'
 ff=filenames.getFilenamesFunction(analysis,version)
 outputDirectory='TreePlots/%s' % analysis+version
 os.makedirs(outputDirectory)
@@ -182,6 +182,7 @@ tfile=ROOT.TFile('%s/treePlotterOutput.root' % outputDirectory,'CREATE')
 DatasetsSets= {
 'WGFakeRate' : ('WJetsToLNu','T+Jets','WZ+G+Jets','DYJetsToLL_amcatnlo','Data','QCD') ,
 'ThreePhoton' : ('QCD','QCD_50plus','QCD_EMEnriched'),
+'ClosureTest' : ('QCD','G+Jets','DiPhotonJets_amcatnlo','Data')
 }
 #datasetWeights={'QCD' : .04*.04 , 'QCD_50plus' : 04*.04 ,  } Do fake rate properly
 #}
@@ -202,7 +203,30 @@ ClosureTestFilters = ( ('NoFilter', lambda event: True),
                 ('AllPhotonIds', lambda event: event.g1_passId and event.g1_passPreselection and event.g2_passId and event.g2_passPreselection)
 )
 plot.setFilters(ClosureTestFilters)
-plot.setWeightingFunction(lambda event: event.genWeight*event.pileupWeight)
+eventWeight=lambda event: event.genWeight*event.pileupWeight
+def _closureTestWeight(filename,fakeratePFHist,fakerateTriggerHist,dataset):
+    tmpTFile=ROOT.TFile(filename)
+    tmpHist=tmpTFile.Get(fakeratePFHist)
+    fakerateHistPF=tmpHist.Clone()
+    tmpHist=tmpTFile.Get(fakerateTriggerHist)
+    fakerateHistTrigger=tmpHist.Clone()
+    def getFakeRatePF(pt,eta):
+        return fakerateHistPF.GetBinContent(fakerateHistPF.FindBin(pt,eta))
+    def getFakeRateTrigger(pt,eta):
+        return fakerateHistTrigger.GetBinContent(fakerateHistTrigger.FindBin(pt,eta))
+    def getEventWeight(event,dataset):
+        fakeWeight=1
+        if dataset in ('QCD'): #All fakes
+            fakeWeight*=getFakeRateTrigger(event.g1_pt,event.g1_eta)
+        if dataset in ('QCD','G+Jets'): 
+            fakeWeight*=getFakeRateTrigger(event.g2_pt,event.g2_eta)
+        if dataset in ('QCD','G+Jets','DiPhotonJets_amcatnlo'):
+            fakeWeight*=getFakeRatePF(event.g3_pt,event.g3_eta)
+        return fakeWeight
+    return getEventWeight
+fakerateWeight=_closureTestWeight('COUNT_FAKE_RATE_7.root',
+    
+plot.setWeightingFunction(lambda event,dataset: event.genWeight*event.pileupWeight*fakerateWeight(event,dataset))
 bookHistograms(plot)
 plot.process()
 c1=ROOT.TCanvas()

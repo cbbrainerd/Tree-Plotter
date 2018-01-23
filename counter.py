@@ -165,10 +165,6 @@ class counter(object):
             fns=self.filenames(subDataset)
             for fn in fns:
                 self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if dataset!='Data' else lambda event:1)
-                if self.eventCounts[dataset] > 10000: #DEBUG
-                    break #DEBUG
-            if self.eventCounts[dataset] > 10000: #DEBUG
-                break # DEBUG
         print "Writing tree %s..." % self.tree.GetName()
         self.tree.Write(str(),ROOT.TObject.kOverwrite)
         for subdataset in DatasetDict[dataset]:

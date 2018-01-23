@@ -248,7 +248,7 @@ class counterFunction(counter): #Cut and count as a function
                     hist.SetStats(0)
                     fullHist=hist.Clone()
                     extraHists={extraFilter : hist.Clone() for extraFilter in self.extraFilters}
-                    [extraHists[extraFilter].SetName('%s_ExtraFilter_%s'%(hist.GetName(),extraFilter)) for extraFilter in self.extraFilters]
+                    [extraHists[extraFilter].SetName('%s_ExtraFilter_%s'%(hist.GetName(),extraFilter)) for extraFilter in self.extraFilters] #COUNT HISTS, EXTRA
                     fullHist.SetName('%s_Full' % fullHist.GetName())
                     fullHist.Write()
                     hist.Divide(self.cutHists[dataset][num])
@@ -282,7 +282,8 @@ class counterFunction(counter): #Cut and count as a function
                 self.fill(event)
                 [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.cutHists[dataset],fillVals)]
                 for extraFilter in self.extraFilters:
-                    [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.extraHists[extraFilter][dataset],fillVals)]
+                    if self.extraFilters[extraFilter](event):
+                        [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.extraHists[extraFilter][dataset],fillVals)]
                 self.cutCounts[subdataset]+=weight #Do weighting later
                 for cut,retval in self._evalCountFilters(event).items():
                     if retval:

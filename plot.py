@@ -203,8 +203,8 @@ ClosureTestFilters = ( ('NoFilter', lambda event: True),
                 ('AllPhotonIds', lambda event: event.g1_passId and event.g1_passPreselection and event.g2_passId and event.g2_passPreselection)
 )
 plot.setFilters(ClosureTestFilters)
-eventWeight=lambda event: event.genWeight*event.pileupWeight
-def _closureTestWeight(filename,fakeratePFHist,fakerateTriggerHist,dataset):
+
+def _closureTestWeight(filename,fakeratePFHist,fakerateTriggerHist):
     tmpTFile=ROOT.TFile(filename)
     tmpHist=tmpTFile.Get(fakeratePFHist)
     fakerateHistPF=tmpHist.Clone()
@@ -224,7 +224,7 @@ def _closureTestWeight(filename,fakeratePFHist,fakerateTriggerHist,dataset):
             fakeWeight*=getFakeRatePF(event.g3_pt,event.g3_eta)
         return fakeWeight
     return getEventWeight
-fakerateWeight=_closureTestWeight('COUNT_FAKE_RATE_7.root',
+fakerateWeight=_closureTestWeight('COUNT_FAKE_RATE_19.root','Fake Rate vs. p_{T} and #eta_Data_AllId','Fake Rate vs. p_{T} and #eta_Data_AllId_ExtraFilter_preselection')
     
 plot.setWeightingFunction(lambda event,dataset: event.genWeight*event.pileupWeight*fakerateWeight(event,dataset))
 bookHistograms(plot)

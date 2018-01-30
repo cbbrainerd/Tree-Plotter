@@ -230,6 +230,10 @@ class counter(object):
             number=max(numbers)+1
         os.chdir(cwd)
         os.symlink('/'.join(self.directory.split('/')[1:]),'%s/../../%d' % (self.directory,number))
+        with open('%s/../../logfile'%self.directory,'wba+') as f:
+            f.write('\nRun %d:\n'%number)
+            for line in self.info:
+                f.write(line)
         os.execlp('bash','bash','root6','-l','%s/%s.root' % (self.directory,self.fn))
 
 class counterFunction(counter): #Cut and count as a function

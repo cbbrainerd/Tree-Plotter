@@ -6,6 +6,7 @@ from array import array
 import itertools
 import datetime
 import os
+import glob
 
 try:
     from DevTools.Plotter.xsec import getXsecRaise as getXsec
@@ -35,12 +36,13 @@ class counter(object):
     def __exit__(self):
         self.__del__()
     def __init__(self,**kwargs):
+        self.success=False
         self.debug=kwargs.pop('debug',False)
         self.analysis=kwargs.pop('analysis')
         self.datasets=kwargs.pop('datasets')
         self.cutFilters=kwargs.pop('cutFilters')
         self.countFilters=kwargs.pop('countFilters')
-        self.directory=kwargs.pop('outputDirectory','%sCOUNT_Output/%s' % ('DEBUG_' if self.debug else '',datetime.datetime.now().isoformat()))
+        self.directory=kwargs.pop('outputDirectory','%sCOUNT_Output/Raw/%s' % ('DEBUG_' if self.debug else '',datetime.datetime.now().isoformat()))
         self.extraFilters=kwargs.pop('extraFilters',{})
         os.makedirs('%s/plots'%self.directory)
         self.lumi=kwargs.pop('luminosity')
@@ -208,10 +210,26 @@ class counter(object):
                     self.fileOut.write('%s: %s %f/%f: %f\n' % (dataset,cut,float(self.datasetCountCounts[cut][dataset]),float(self.datasetCutCounts[dataset]),self.datasetCountCounts[cut][dataset]/float(self.datasetCutCounts[dataset])))
                 except ZeroDivisionError:
                     self.fileOut.write('%s: %s %f/%f: ZERO_DIVISION_ERROR\n' % (dataset,cut,float(self.datasetCountCounts[cut][dataset]),float(self.datasetCutCounts[dataset])))
+        self.success=True
                     
     def __del__(self):
         self.TFileOut.Close()
         self.fileOut.close()
+        if not self.success: return
+        cwd=os.getcwd()
+        os.chdir('%s/../..' % self.directory)
+        def hint(x):
+            try:
+                return int(x)
+            except:
+                return 0
+        numbers=[int(x) for x in glob.glob('[0-9]*')]
+        if not numbers: 
+            number=1
+        else:
+            number=max(numbers)+1
+        os.chdir(cwd)
+        os.symlink('/'.join(self.directory.split('/')[1:]),'%s/../../%d' % (self.directory,number))
         os.execlp('bash','bash','root6','-l','%s/%s.root' % (self.directory,self.fn))
 
 class counterFunction(counter): #Cut and count as a function

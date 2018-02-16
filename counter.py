@@ -284,6 +284,10 @@ class counterFunction(counter): #Cut and count as a function
         for datasetHist in self.cutHists.itervalues():
             for hist in datasetHist:
                 hist.Write()
+        for extraFilter in self.extraFilters:
+            for datasetHist in self.extraHists[extraFilter].itervalues():   
+                for hist in datasetHist:
+                    hist.Write()
         for dataset,datasetHist in self.countHists.iteritems():
             for num,hl in enumerate(datasetHist):
                 for name,hist in hl.iteritems():
@@ -295,8 +299,14 @@ class counterFunction(counter): #Cut and count as a function
                     [extraFullHists[extraFilter].Write() for extraFilter in self.extraFilters]
                     fullHist.SetName('%s_Full' % fullHist.GetName())
                     fullHist.Write()
+                    #h=ROOT.TEfficiency(hist,self.cutHists[dataset][num])
+                    #h.SetDirectory(self.TFileOut)
+                    #h.Write()
                     hist.Divide(self.cutHists[dataset][num])
                     for extraFilter in self.extraFilters:
+                        #h1=ROOT.TEfficiency(self.extraCountHists[extraFilter][dataset][num][name],self.extraHists[extraFilter][dataset][num])
+                        #h1.SetDirectory(self.TFileOut)
+                        #h1.Write()
                         self.extraCountHists[extraFilter][dataset][num][name].Divide(self.extraHists[extraFilter][dataset][num])
                     for histogram in itertools.chain((hist,),[self.extraCountHists[extraFilter][dataset][num][name] for extraFilter in self.extraFilters]):
                         print type(histogram)

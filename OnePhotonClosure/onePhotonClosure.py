@@ -23,8 +23,8 @@ bins= {
 
 parameters=lambda:{
 'analysis'     : 'OnePhotonClosure',
-'inputTreeName': 'OnePhotonTree',
-'datasets'     : ('ZeroBias',),
+'inputTreeName': 'DijetTree',
+'datasets'     : ('JetHT',),
 'cutFilters'   : [lambda event: not (event.g_pt < 20),lambda event: abs(event.g_eta) < 2.5],
 'extraFilters' : {'preselection' : lambda event:event.g_passPreselection > .5,'barrel' : lambda event:abs(event.g_eta) < 1.479 , 'endcap' : lambda event:abs(event.g_eta) > 1.479},
 'countFilters' : {'MVA' : lambda event:event.g_mvaNonTrigValues > 0, 'PreselectionNoElectronVeto' : lambda event: event.g_passPreselectionNoElectronVeto > .5, 'Preselection' : lambda event: event.g_passPreselection > .5,'PhotonId' : lambda event: event.g_passId > .5, 'PassPreselectionFailPhotonId' : lambda event: event.g_passPreselection and not event.g_passId, 'AllId' : lambda event: event.g_passPreselection and event.g_passId and event.g_mvaNonTrigValues > 0},

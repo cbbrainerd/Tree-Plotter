@@ -43,6 +43,13 @@ class counter(object):
         self.cutFilters=kwargs.pop('cutFilters')
         self.countFilters=kwargs.pop('countFilters')
         self.directory=kwargs.pop('outputDirectory','%sCOUNT_Output/Raw/%s' % ('DEBUG_' if self.debug else '',datetime.datetime.now().isoformat()))
+        self.multiEvent=kwargs.pop('multiEvent',False) #Each event has multiple products, in an array
+        if self.multiEvent:
+            self._handleFile=self._handleFileME
+            self.multiFunction=kwargs.pop('multiFunction')
+            self.globalFilter=kwargs.pop('globalFilter',lambda event:True) #Filter to run on first event: throw out all events if fails
+        else:
+            self._handleFile=self._handleFileSE
         self.extraFilters=kwargs.pop('extraFilters',{})
         os.makedirs('%s/plots'%self.directory)
         self.lumi=kwargs.pop('luminosity')
@@ -50,7 +57,7 @@ class counter(object):
         self.eventWeight=kwargs.pop('weighting') #Lambda takes event
         self.fn=kwargs.pop('filename','%s_count' % self.analysis)
         countFilterFunctions=self.countFilters.keys()
-        self.countFilters['All']=lambda event: True
+        #self.countFilters['All']=lambda event: True
         self.inputTreeName=kwargs.pop('inputTreeName','%sTree' % self.analysis)
         self.trees={}
         self.branches={}
@@ -142,7 +149,55 @@ class counter(object):
                     except ZeroDivisionError:
                         print subDataset
                         raise
-    def _handleFile(self,dataset,subdataset,fn,sdw,ew):
+    class rle:
+        def __init__(self):
+            self.run=-1
+            self.lumi=-1
+            self.event=-1
+        def checkNew(self,event):
+            if(self.run==event.run and self.lumi==event.lumi and self.event==event.event):
+                return False
+            elif (self.run==-1):
+                self.run=event.run
+                self.lumi=event.lumi
+                self.event=event.event
+                return False
+            else:
+                self.run=event.run
+                self.lumi=event.lumi
+                self.event=event.event
+                return True
+    def _handleFileME(self,dataset,subdataset,fn,sdw,ew):
+        tmpTFile=ROOT.TFile.Open(fn)
+        tree=tmpTFile.Get(self.inputTreeName)
+        check=self.rle()
+        eventOffsetStart=0
+        def _handleEvents(events):
+            for e in events:
+                self.eventCounts[dataset]+=1
+                if not (self.eventCounts[dataset] % 100000):
+                    print '%d events analyzed.' % self.eventCounts[dataset] 
+                if self._evalCutFilters(event):
+                    weight=sdw*ew(event)
+                    self.fill(event)
+                    self.cutCounts[subdataset]+=weight #Do weighting later
+                    for cut,retval in self._evalCountFilters(event).items():
+                        if retval:
+                            self.countCounts[cut][subdataset]+=weight
+        events=[]
+        for event in tree:
+            if check.checkNew(event):
+                if self.globalFilter(events[0]):
+                    events=self.multiFunction(events)
+                    _handleEvents(events)
+                events=[event]
+            else:
+                events.append(event)
+        if self.globalFilter(events[0]):
+            _handleEvents(self.multiFunction(events))
+        tmpTFile.Close()
+        self.TFileOut.cd()
+    def _handleFileSE(self,dataset,subdataset,fn,sdw,ew):
 #        print 'Opening file %s.' % fn
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
@@ -168,7 +223,9 @@ class counter(object):
             fns=self.filenames(subDataset)
             for fn in fns:
                 self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if '_' in dataset else lambda event:1)
-                if self.debug: break
+                if self.debug: 
+                    print 'Debug run. Exiting early.'
+                    break
         print "Writing tree %s..." % self.tree.GetName()
         self.tree.Write(str(),ROOT.TObject.kOverwrite)
         for subdataset in DatasetDict[dataset]:
@@ -239,6 +296,10 @@ class counter(object):
 class counterFunction(counter): #Cut and count as a function
     def __init__(self,**kwargs):
         super(counterFunction,self).__init__(**kwargs)
+        if self.multiEvent: #Kinda ugly. Fix?
+            self._handleFile=self._handleFileME
+        else:
+            self._handleFile=self._handleFileSE
         self.functionals=kwargs.pop('function') #Lambda takes event
         self.histTemplates=kwargs.pop('histogram',None)
         if False:#if not histogram: #New version. Not yet implemented
@@ -322,7 +383,52 @@ class counterFunction(counter): #Cut and count as a function
 #                            hist.GetYaxis().SetRangeUser(0,y/float(10))
 #                            hist.Draw()
 #                            canvas.Print('%s/COUNT_%s_%s_%s_%s_y%d.pdf' % (self.directory,self.analysis,dataset,hname,name,y))
-    def _handleFile(self,dataset,subdataset,fn,sdw,ew):
+    def _handleFileME(self,dataset,subdataset,fn,sdw,ew):
+        tmpTFile=ROOT.TFile.Open(fn)
+        tree=tmpTFile.Get(self.inputTreeName)
+        check=self.rle()
+        eventOffsetStart=0
+        def _handleEvents(events):
+            for e in events:
+                self.eventCounts[dataset]+=1
+                if not (self.eventCounts[dataset] % 100000):
+                    print '%d events analyzed.' % self.eventCounts[dataset] 
+                if self._evalCutFilters(event):
+                    weight=sdw*ew(event)
+                    fillVals=[list(fun(event)) for fun in self.functionals]
+                    [fillVal.append(weight) for fillVal in fillVals]
+                    self.fill(event)
+                    [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.cutHists[dataset],fillVals)]
+                    extraFilterPass=[extraFilter for extraFilter in self.extraFilters if self.extraFilters[extraFilter](event)]
+                    for extraFilter in extraFilterPass:
+                        [ch.Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.extraHists[extraFilter][dataset],fillVals)]
+                    self.cutCounts[subdataset]+=weight #Do weighting later
+                    for cut,retval in self._evalCountFilters(event).items():
+                        if retval:
+                            self.countCounts[cut][subdataset]+=weight
+                            [ch[cut].Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.countHists[dataset],fillVals)]
+                            for extraFilter in extraFilterPass:
+                                [ch[cut].Fill(*fillVal) for (ch,fillVal) in itertools.izip(self.extraCountHists[extraFilter][dataset],fillVals)]
+#                    weight=sdw*ew(event)
+#                    self.fill(event)
+#                    self.cutCounts[subdataset]+=weight #Do weighting later
+#                    for cut,retval in self._evalCountFilters(event).items():
+#                        if retval:
+#                            self.countCounts[cut][subdataset]+=weight
+        events=[]
+        for event in tree:
+            if check.checkNew(event):
+                if self.globalFilter(events[0]):
+                    events=self.multiFunction(events)
+                    _handleEvents(events)
+                events=[event]
+            else:
+                events.append(event)
+        if self.globalFilter(events[0]):
+            _handleEvents(self.multiFunction(events))
+        tmpTFile.Close()
+        self.TFileOut.cd()
+    def _handleFileSE(self,dataset,subdataset,fn,sdw,ew):
         tmpTFile=ROOT.TFile.Open(fn)
         tree=tmpTFile.Get(self.inputTreeName)
         for event in tree:

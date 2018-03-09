@@ -16,13 +16,18 @@ def _wgFakes(version='v9'):
     if version!='v9':
         raise ValueError(version)
     def _wgFakesH(dataset):  
-        return glob.glob('WGFakeRate%s/*%s*/results/*.root' % (version,dataset))
+        return glob.glob('InclusiveWGFakeRate/*%s*/results/*.root' % (dataset))
     return _wgFakesH
 
 def _ThreePhoton(version='v9'):
     def _ThreePhotonH(dataset):
         return glob.glob('ThreePhoton%s/*%s*/results/*.root' % (version,dataset))
     return _ThreePhotonH
+
+def _Directory(directory):
+    def _DirectoryH(dataset):
+        return glob.glob('%s/*%s*/results/*.root' % (directory,dataset))
+    return _DirectoryH
 
 def getFilenamesFunction(identifier=None,version='v9'):
     global g_dataset
@@ -38,6 +43,9 @@ def getFilenamesFunction(identifier=None,version='v9'):
         try:
             return { 'hadd' : _hadd , 'notHadd' : _notHadd , 'Run2' : _run2 , 'WGFakeRate' : _wgFakes, 'ThreePhoton' : _ThreePhoton }[identifier](version)
         except KeyError:
-            raise
+            try:
+                return _Directory(identifier)
+            except:
+                raise
 
 fnf=getFilenamesFunction

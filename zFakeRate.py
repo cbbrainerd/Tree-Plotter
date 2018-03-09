@@ -15,6 +15,8 @@ import inspect
 from array import array
 
 from Datasets import DatasetDict
+from math import pi
+
 
 def parameters():
     class edict(dict): #Wrapper around a dict to act more like a CMS event object
@@ -22,9 +24,21 @@ def parameters():
             return self[name]
     def trueProduct(e,branch):
         return getattr(e,'%s_pt' % branch) != 0
+    def DeltaPhi(p1,p2):
+        dphi=p1-p2
+        if dphi > pi:
+            return dphi-2*pi
+        elif dphi < -pi:
+            return dphi+2*pi
+        else:
+            return dphi
     def deltaR2(a,b):
-        deltaPhi=a['phi']-b['phi']
+        deltaPhi=DeltaPhi(a['phi'],b['phi'])
         deltaEta=a['eta']-b['eta']
+        return deltaPhi**2+deltaEta**2
+    def deltaR2Event(event,a,b):
+        deltaPhi=DeltaPhi(getattr(event,'%s_phi'%a),getattr(event,'%s_phi'%b))
+        deltaEta=getattr(event,'%s_eta'%a)-getattr(event,'%s_eta'%b)
         return deltaPhi**2+deltaEta**2
     def getCandidates(jets,photons):
         candidateList=[]
@@ -59,22 +73,21 @@ def parameters():
         return candidates
     bins={
         'pt'       : array('f',[0,20,21,22,23,24,25,50,75,100,125,150,175,200,500]) ,
-        'eta'      : array('f',[-2.5,-2.0,-1.479,-1,-.5,0,.5,1,1.479,2.0,2.5]) ,
+        'eta'      : array('f',[0,.5,1,1.479,2.0,2.5]) ,
     }
     Zmass=91.1876
     return {
         'analysis'     : 'ZFakeRate',
         'inputTreeName': 'WGFakeRateTree', #Whoops!
         'datasets'     : ('Data',),
-        'cutFilters'   : [],
+        'cutFilters'   : [ lambda event: deltaR2Event(event,'j','m1') > 1 , lambda event: deltaR2Event(event,'j','m2') > 1  ], #Isolation between jet and muons
         'extraFilters' : {'preselection' : lambda event:event.g_passPreselection > .5 },
         'countFilters' : {'MVA' : lambda event:event.g_mvaNonTrigValues > 0, 'PreselectionNoElectronVeto' : lambda event: event.g_passPreselectionNoElectronVeto > .5, 'Preselection' : lambda event: event.g_passPreselection > .5,'PhotonId' : lambda event: event.g_passId > .5, 'PassPreselectionFailPhotonId' : lambda event: event.g_passPreselection and not event.g_passId, 'AllId' : lambda event: event.g_passPreselection and event.g_passId and event.g_mvaNonTrigValues > 0, 'lowMET' : lambda event: event.met_pt < 40 , 'highMET' : lambda event: event.met_pt >= 40 , },
         'function'     : (lambda event: (event.g_pt,), lambda event: (abs(event.g_eta),), lambda event: (event.g_pt,abs(event.g_eta))),
         'histogram'    : (ROOT.TH1F('Fake Rate vs. p_{T}','Fake Rate;p_{T};Fake Rate',len(bins['pt'])-1,bins['pt']),ROOT.TH1F('Fake Rate vs. #eta','Fake Rate;#eta;Fake Rate',len(bins['eta'])-1,bins['eta']),ROOT.TH2F('Fake Rate vs. p_{T} and #eta','Fake Rate;p_{T};#eta',len(bins['pt'])-1,bins['pt'],len(bins['eta'])-1,bins['eta'])),
-        'filename'     : 'Count_WGFakeRate',
+        'filename'     : 'Count_ZFakeRate',
         'weighting'    : lambda event: event.genWeight*event.pileupWeight,
         'luminosity'   : 35867.060,
-        'debug'        : True,
         'multiEvent'   : True,
         'globalFilter' : lambda event: abs(event.mm_mass - Zmass) < 2,
         'multiFunction': processMultiFunction,

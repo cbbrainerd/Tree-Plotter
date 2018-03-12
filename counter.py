@@ -42,6 +42,7 @@ class counter(object):
         self.datasets=kwargs.pop('datasets')
         self.cutFilters=kwargs.pop('cutFilters')
         self.countFilters=kwargs.pop('countFilters')
+        self.DatasetDict=kwargs.pop('DatasetDict',DatasetDict)
         self.directory=kwargs.pop('outputDirectory','%sCOUNT_Output/Raw/%s' % ('DEBUG_' if self.debug else '',datetime.datetime.now().isoformat()))
         self.multiEvent=kwargs.pop('multiEvent',False) #Each event has multiple products, in an array
         if self.multiEvent:
@@ -88,9 +89,9 @@ class counter(object):
     def _initTree(self,dataset):
         self.TFileOut.cd()
         for cut in self.countFilters:
-            for subdataset in DatasetDict[dataset]:
+            for subdataset in self.DatasetDict[dataset]:
                 self.countCounts[cut][subdataset]=0
-        for subdataset in DatasetDict[dataset]:
+        for subdataset in self.DatasetDict[dataset]:
             self.cutCounts[subdataset]=0
         self.tree=ROOT.TTree(dataset,dataset)
         print "Tree %s initialized..." % self.tree.GetName()
@@ -131,7 +132,7 @@ class counter(object):
     def _genSubdatasetWeights(self):
         self.subdatasetWeight={}
         for dataset in self.datasets:
-            for subDataset in DatasetDict[dataset]:
+            for subDataset in self.DatasetDict[dataset]:
                 if '_' not in dataset: #All MC has "_" somewhere in it
                     self.subdatasetWeight[subDataset]=1
                 else:        
@@ -143,7 +144,10 @@ class counter(object):
                             raise IOError(fn)
                         numberOfEvents+=tmpTfile.summedWeights.GetBinContent(1)
                         tmpTfile.Close()
-                    xsec=getXsec(subDataset)
+                    try:
+                        xsec=getXsec(subDataset)
+                    except KeyError: #No dataset weight found
+                        xsec=-1
                     try:
                         self.subdatasetWeight[subDataset]=xsec*self.lumi/float(numberOfEvents)
                     except ZeroDivisionError:
@@ -187,13 +191,13 @@ class counter(object):
         events=[]
         for event in tree:
             if check.checkNew(event):
-                if self.globalFilter(events[0]):
+                if events and self.globalFilter(events[0]):
                     events=self.multiFunction(events)
                     _handleEvents(events)
                 events=[event]
             else:
                 events.append(event)
-        if self.globalFilter(events[0]):
+        if events and self.globalFilter(events[0]):
             _handleEvents(self.multiFunction(events))
         tmpTFile.Close()
         self.TFileOut.cd()
@@ -219,7 +223,7 @@ class counter(object):
         self.TFileOut.cd()
         self._initTree(dataset)
         self.eventCounts[dataset]=0
-        for subDataset in DatasetDict[dataset]:
+        for subDataset in self.DatasetDict[dataset]:
             fns=self.filenames(subDataset)
             for fn in fns:
                 self._handleFile(dataset,subDataset,fn,self.subdatasetWeight[subDataset],self.eventWeight if '_' in dataset else lambda event:1)
@@ -228,7 +232,7 @@ class counter(object):
                     break
         print "Writing tree %s..." % self.tree.GetName()
         self.tree.Write(str(),ROOT.TObject.kOverwrite)
-        for subdataset in DatasetDict[dataset]:
+        for subdataset in self.DatasetDict[dataset]:
             self.fileOut.write('%s:' % subdataset)
             if not self.cutCounts[subdataset]:
                 self.fileOut.write('No events passing selection cut.\n')
@@ -246,7 +250,7 @@ class counter(object):
             self.datasetCutCounts[dataset]=0
             for cut in self.countFilters:
                 self.datasetCountCounts[cut][dataset]=0
-            for subDataset in DatasetDict[dataset]:
+            for subDataset in self.DatasetDict[dataset]:
                 self.datasetCutCounts[dataset]+=self.cutCounts[subDataset]
                 for cut in self.countFilters:
                     self.datasetCountCounts[cut][dataset]+=self.countCounts[cut][subDataset]
@@ -272,7 +276,9 @@ class counter(object):
     def __del__(self):
         self.TFileOut.Close()
         self.fileOut.close()
-        if not self.success: return
+        if not self.success: 
+            print 'Failed?'
+            return
         cwd=os.getcwd()
         os.chdir('%s/../..' % self.directory)
         def hint(x):
@@ -390,7 +396,6 @@ class counterFunction(counter): #Cut and count as a function
         eventOffsetStart=0
         def _handleEvents(events):
             for e in events:
-                self.eventCounts[dataset]+=1
                 if not (self.eventCounts[dataset] % 100000):
                     print '%d events analyzed.' % self.eventCounts[dataset] 
                 if self._evalCutFilters(event):
@@ -418,13 +423,15 @@ class counterFunction(counter): #Cut and count as a function
         events=[]
         for event in tree:
             if check.checkNew(event):
-                if self.globalFilter(events[0]):
+                self.eventCounts[dataset]+=1
+                if events and self.globalFilter(events[0]):
                     events=self.multiFunction(events)
                     _handleEvents(events)
                 events=[event]
             else:
                 events.append(event)
-        if self.globalFilter(events[0]):
+        self.eventCounts[dataset]+=1
+        if events and self.globalFilter(events[0]):
             _handleEvents(self.multiFunction(events))
         tmpTFile.Close()
         self.TFileOut.cd()

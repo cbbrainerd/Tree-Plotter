@@ -13,12 +13,16 @@ from counter import counterFunction as counter
 import ROOT
 import inspect
 from array import array
+import glob
 
 from Datasets import DatasetDict
 from math import pi
 
 
 def parameters():
+    class fakedict:
+        def __init__(self): pass
+        def __getitem__(self,item): return [item]
     class edict(dict): #Wrapper around a dict to act more like a CMS event object
         def __getattr__(self,name):
             return self[name]
@@ -79,7 +83,7 @@ def parameters():
     return {
         'analysis'     : 'ZFakeRate',
         'inputTreeName': 'WGFakeRateTree', #Whoops!
-        'datasets'     : ('Data',),
+        'datasets'     : [x.split('/')[-1].split('_',2)[2] for x in glob.glob('ZFakeRate/crab_*')], #('Data',),
         'cutFilters'   : [ lambda event: deltaR2Event(event,'j','m1') > 1 , lambda event: deltaR2Event(event,'j','m2') > 1  ], #Isolation between jet and muons
         'extraFilters' : {'preselection' : lambda event:event.g_passPreselection > .5 },
         'countFilters' : {'MVA' : lambda event:event.g_mvaNonTrigValues > 0, 'PreselectionNoElectronVeto' : lambda event: event.g_passPreselectionNoElectronVeto > .5, 'Preselection' : lambda event: event.g_passPreselection > .5,'PhotonId' : lambda event: event.g_passId > .5, 'PassPreselectionFailPhotonId' : lambda event: event.g_passPreselection and not event.g_passId, 'AllId' : lambda event: event.g_passPreselection and event.g_passId and event.g_mvaNonTrigValues > 0, 'lowMET' : lambda event: event.met_pt < 40 , 'highMET' : lambda event: event.met_pt >= 40 , },
@@ -91,6 +95,8 @@ def parameters():
         'multiEvent'   : True,
         'globalFilter' : lambda event: abs(event.mm_mass - Zmass) < 2,
         'multiFunction': processMultiFunction,
+        'DatasetDict'  : fakedict(),
+        'debug'        : True,
     }
 
 info=inspect.getsourcelines(parameters)[0]
